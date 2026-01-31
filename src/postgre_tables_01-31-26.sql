@@ -1,4 +1,7 @@
 -- Use if you want to test Locally using MySQL Workbench or XAMPP through phpMyAdmin
+-- TABLES CAN BE SUBJECTED TO CHANGE BASED ON NEW REQUIREMENTS
+-- TABLES THAT ARE SUBJECTED TO REVISIONS would be USERS, STREAKS, FOOD_LOG
+
 CREATE TABLE users (
                        user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                        email TEXT NOT NULL UNIQUE,
