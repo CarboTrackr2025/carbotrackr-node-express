@@ -31,6 +31,11 @@ const envSchema = z.object({
     //     .positive()
     //     .default(isProduction ? 50 : 10),
 
+    GOOGLE_GEMINI_API_KEY: z.string().min(39),
+
+    FAT_SECRET_CONSUMER_KEY: z.string().min(32),
+    FAT_SECRET_CONSUMER_SECRET: z.string().min(32),
+
     // CORS_ORIGIN: z
     //     .string()
     //     .or(z.array(z.string()))
