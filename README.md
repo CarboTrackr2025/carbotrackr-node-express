@@ -9,6 +9,7 @@
 6. Copy the connection string provided. This string is your DATABASE_URL.
 7. Note for athAIna/CarboTrackr developers: Create your own database or select existing database [CarboTrackr_ForAllDevs] for development purposes.
 
+
 #### GOOGLE_GEMINI_API_KEY
 1. Navigate to Google AI Studio [`https://aistudio.google.com`] and use your Google account to sign in.
 2. Click the "Create API Key" button to generate a new API key. 
@@ -60,6 +61,7 @@
 1. Make sure to do npm install to install all dependencies.
 2. Always double-check the package.json scripts to see what commands are available.
 3. Run the application using `npm run dev` for development mode
+4. Locally, test the application health by navigating to `http://localhost:[port]/health` in your web browser or using an API testing tool like Postman.
 
 
 ## How to test API endpoints?
