@@ -7,7 +7,7 @@
 5. Make sure to allow Connection Pooling (by toggling the switch) for better performance.
 5. In the "Connection Details" section, locate the "Connection String" field.
 6. Copy the connection string provided. This string is your DATABASE_URL.
-
+7. Note for athAIna/CarboTrackr developers: Create your own database or select existing database [CarboTrackr_ForAllDevs] for development purposes.
 
 #### GOOGLE_GEMINI_API_KEY
 1. Navigate to Google AI Studio [`https://aistudio.google.com`] and use your Google account to sign in.
@@ -16,6 +16,7 @@
 4. Name your Project
 5. Click the Key to view and copy the API key.
 6. Test the API Key with Postman or any API testing tool to ensure it works correctly.
+7. Note for athAIna/CarboTrackr developers: Choose the Default Gemini Project for development purposes
 
 
 #### FAT_SECRET_CONSUMER_KEY and FAT_SECRET_CONSUMER_SECRET (CAN ALSO CHOOSE FAT_SECRET_CLIENT_ID AND FAT_SECRET_CLIENT_SECRET BASED ON YOUR PREFERENCE)
