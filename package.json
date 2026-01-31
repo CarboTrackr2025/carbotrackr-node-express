@@ -31,7 +31,6 @@
   },
   "dependencies": {
     "@epic-web/remember": "^1.1.0",
-    "cors": "^2.8.6",
     "custom-env": "^2.0.6",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
@@ -47,7 +46,7 @@
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.1.0",
-    "drizzle-kit": "^0.31.8",
+    "drizzle-kit": "^0.18.1",
     "jest": "^30.2.0",
     "ts-jest": "^29.4.6",
     "typescript": "^5.9.3"

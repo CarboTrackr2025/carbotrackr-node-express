@@ -36,18 +36,6 @@ const envSchema = z.object({
     FAT_SECRET_CONSUMER_KEY: z.string().min(32),
     FAT_SECRET_CONSUMER_SECRET: z.string().min(32),
 
-    // CORS_ORIGIN: z
-    //     .string()
-    //     .or(z.array(z.string()))
-    //     .transform((val) => {
-    //         if (typeof val == "string")
-    //         {
-    //             return val.split(",").map((origin) => origin.trim())
-    //         }
-    //         return val
-    //     })
-    //     .default([]),
-    //
     // LOG_LEVEL: z
     //     .enum(["error", "warn", "info", "debug"])
     //     .default(isProduction ? "info" : "debug")
