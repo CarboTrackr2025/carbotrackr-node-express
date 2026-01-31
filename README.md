@@ -61,6 +61,14 @@
 3. Run the application using `npm run dev` for development mode
 
 
+## How to test API endpoints?
+1. Use Postman or any API testing tool of your choice.
+2. Make sure the application is running (using `npm run dev`).
+3. Use the appropriate HTTP methods (GET, POST, PUT, DELETE) to test the API endpoints defined in the routes folder.
+4. Include necessary headers and body data as required by the endpoints.
+5. Check the responses and status codes to ensure the endpoints are functioning correctly.
+
+
 ## Reminders
 #### db folder
 - It contains all database-related files, including schema definitions, migration scripts, and seed data.
