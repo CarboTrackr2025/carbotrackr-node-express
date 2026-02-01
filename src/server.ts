@@ -10,9 +10,14 @@ import reportRoutes from "./routes/reportRoutes.ts"
 import scannerRoutes from "./routes/scannerRoutes.ts"
 import settingsRoutes from "./routes/settingsRoutes.ts";
 
+
 const app = express()
+
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+
+
 app.use("/auth", authRoutes)
 app.use("/contact", contactRoutes)
 app.use("/dashboard", dashboardRoutes)
