@@ -237,3 +237,47 @@ export const carbohydrateDataRelations = relations(carbohydrateData, ({ one }) =
         references: [profiles.id]
     })
 }))
+
+
+export type Account = typeof accounts.$inferSelect;
+export type Profile = typeof profiles.$inferSelect;
+export type HealthMetric = typeof healthMetrics.$inferSelect;
+export type BloodPressureMeasurement = typeof bloodPressureMeasurements.$inferSelect;
+export type BloodGlucoseMeasurement = typeof bloodGlucoseMeasurements.$inferSelect;
+export type FoodLog = typeof foodLogs.$inferSelect;
+export type FAQ = typeof faqs.$inferSelect;
+export type Inquiry = typeof inquiries.$inferSelect;
+export type CalorieData = typeof calorieData.$inferSelect;
+export type CarbohydrateData = typeof carbohydrateData.$inferSelect;
+
+
+export const insertProfileSchema = createInsertSchema(profiles)
+export const selectProfileSchema = createSelectSchema(profiles)
+
+export const insertHealthMetricSchema = createInsertSchema(healthMetrics)
+export const selectHealthMetricSchema = createSelectSchema(healthMetrics)
+
+export const insertBloodPressureMeasurementSchema = createInsertSchema(bloodPressureMeasurements)
+export const selectBloodPressureMeasurementSchema = createSelectSchema(bloodPressureMeasurements)
+
+export const insertBloodGlucoseMeasurementSchema = createInsertSchema(bloodGlucoseMeasurements)
+export const selectBloodGlucoseMeasurementSchema = createSelectSchema(bloodGlucoseMeasurements)
+
+export const insertFoodLogSchema = createInsertSchema(foodLogs)
+export const selectFoodLogSchema = createSelectSchema(foodLogs)
+
+export const insertFAQSchema = createInsertSchema(faqs)
+export const selectFAQSchema = createSelectSchema(faqs)
+
+export const insertInquirySchema = createInsertSchema(inquiries)
+export const selectInquirySchema = createSelectSchema(inquiries)
+
+export const insertCalorieDataSchema = createInsertSchema(calorieData)
+export const selectCalorieDataSchema = createSelectSchema(calorieData)
+
+export const insertCarbohydrateDataSchema = createInsertSchema(carbohydrateData)
+export const selectCarbohydrateDataSchema = createSelectSchema(carbohydrateData)
+
+
+
+
