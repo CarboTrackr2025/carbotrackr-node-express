@@ -12,7 +12,7 @@ CREATE TABLE users (
 CREATE TABLE accounts (
                           account_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                           user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-                          gender VARCHAR(10) CHECK (gender IN ('Female','Male')),
+                          sex VARCHAR(10) CHECK (sex IN ('Female','Male')),
                           date_of_birth DATE,
                           height_cm INT CHECK (height_cm > 0),
                           weight_kg DECIMAL(5,2) CHECK (weight_kg > 0),
@@ -20,7 +20,7 @@ CREATE TABLE accounts (
                           archived_at TIMESTAMP
 );
 
-CREATE TABLE health (
+CREATE TABLE health_metrics (
                         health_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         account_id UUID NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
                         daily_calorie_goal INT CHECK (daily_calorie_goal > 0),
