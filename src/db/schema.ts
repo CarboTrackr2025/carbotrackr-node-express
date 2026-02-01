@@ -170,3 +170,70 @@ export const carbohydrateData = createTable("carbohydrate_data",
         check("carbohydrate_data_carbohydrate_actual_g_gt_0", sql`${t.carbohydrate_actual_g} > 0`),
     ]
 )
+
+
+export const profilesRelations = relations(profiles, ({ one, many }) => ({
+    account: one(accounts, {
+        fields: [profiles.account_id],
+        references: [accounts.id]
+    }),
+
+    healthMetrics: one(healthMetrics, {
+        fields: [profiles.id],
+        references: [healthMetrics.profile_id],
+    }),
+
+    bloodPressureMeasurements: many(bloodPressureMeasurements),
+    bloodGlucoseMeasurements: many(bloodGlucoseMeasurements),
+    foodLogs: many(foodLogs),
+    calorieData: many(calorieData),
+    carbohydrateData: many(carbohydrateData),
+}))
+
+
+export const healthMetricsRelations = relations(healthMetrics, ({ one }) => ({
+    profile: one(profiles, {
+        fields: [healthMetrics.profile_id],
+        references: [profiles.id]
+    })
+}))
+
+
+export const bloodPressureMeasurementsRelations = relations(bloodPressureMeasurements, ({ one }) => ({
+    profile: one(profiles, {
+        fields: [bloodPressureMeasurements.profile_id],
+        references: [profiles.id]
+    })
+}))
+
+
+export const bloodGlucoseMeasurementsRelations = relations(bloodGlucoseMeasurements, ({ one }) => ({
+    profile: one(profiles, {
+        fields: [bloodGlucoseMeasurements.profile_id],
+        references: [profiles.id]
+    })
+}))
+
+
+export const foodLogsRelations = relations(foodLogs, ({ one }) => ({
+    profile: one(profiles, {
+        fields: [foodLogs.profile_id],
+        references: [profiles.id]
+    })
+}))
+
+
+export const calorieDataRelations = relations(calorieData, ({ one }) => ({
+    profile: one(profiles, {
+        fields: [calorieData.profile_id],
+        references: [profiles.id]
+    })
+}))
+
+
+export const carbohydrateDataRelations = relations(carbohydrateData, ({ one }) => ({
+    profile: one(profiles, {
+        fields: [carbohydrateData.profile_id],
+        references: [profiles.id]
+    })
+}))
