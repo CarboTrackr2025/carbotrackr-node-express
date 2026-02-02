@@ -74,6 +74,25 @@ const seed = () => async() => {
             },
         ])
 
+        console.log("Creating blood glucose measurements for demo profile")
+
+        await db.insert(bloodGlucoseMeasurements).values([
+            {
+                profile_id: demoProfile.id,
+                level: 5.5,
+                units: "MG_DL",
+            },
+            {
+                profile_id: demoProfile.id,
+                level: 6.2,
+                units: "MG_DL",
+            },
+            {
+                profile_id: demoProfile.id,
+                level: 5.8,
+                units: "MG_DL",
+            },
+        ])
 
     }
     catch(e)
