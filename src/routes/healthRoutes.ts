@@ -1,9 +1,11 @@
 import { Router } from "express"
 import { z } from "zod"
 import { validateBody, validateParams, validateQuery } from "../middleware/validation.ts"
-import { createBloodPressure} from "../controller/healthController.ts";
+import { createBloodPressure, viewBloodPressureReport } from "../controller/healthController.ts";
 
-const router = Router()
+
+const healthRouter = Router()
+
 
 const decimal_precision_5_scale_2_regex = /^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/
 const decimal_precision_5_scale_2 = z
@@ -13,14 +15,22 @@ const decimal_precision_5_scale_2 = z
     .transform((val) => Number(val))
     .refine((n) => Number.isFinite(n), { message: "Value must be a finite number" })
 
+
 const createBloodPressureSchema = z.object({
-    profile_id: z.uuid().optional(),
+    profile_id: z.uuid(),
     systolic_mmHg: z.int().positive(),
     diastolic_mmHg: z.int().positive()
 })
 
-router.post("/blood-pressure/create", validateBody(createBloodPressureSchema), createBloodPressure)
+
+const reportBloodPressureQuerySchema = z.object({
+    "start_date": z.string().refine((dateStr) => !isNaN(Date.parse(dateStr)), { message: "Invalid start date format" }),
+    "end_date": z.string().refine((dateStr) => !isNaN(Date.parse(dateStr)), { message: "Invalid end date format" })
+})
 
 
+healthRouter.post("/blood-pressure/create", validateBody(createBloodPressureSchema), createBloodPressure)
+healthRouter.get("/:profile_id/blood-pressure/report", validateQuery(reportBloodPressureQuerySchema), viewBloodPressureReport)
 
-export default router
+
+export default healthRouter
