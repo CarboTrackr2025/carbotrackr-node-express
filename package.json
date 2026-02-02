@@ -17,6 +17,7 @@
     "db:healthSeed": "node src/db/healthSeed.ts",
     "db:reportSeed": "node src/db/reportSeed.ts",
     "db:settingsSeed": "node src/db/settingsSeed.ts",
+    "db:initialSeed": "node src/db/initialSeed.ts",
     "dev": "node --watch src/index.ts"
   },
   "license": "MIT",

@@ -20,6 +20,7 @@ const createTable = pgTableCreator((name) => name)
 // Schema for users can be changed depending on Clerk integration
 export const accounts = createTable("accounts", {
     id: uuid("id").primaryKey().defaultRandom(),
+    email: varchar("email", { length: 255}).notNull().unique(),
 })
 
 
@@ -30,9 +31,9 @@ export const profiles = createTable("profiles",
         id: uuid("id").primaryKey().defaultRandom(),
         account_id: uuid("account_id").references(() => accounts.id, {onDelete: "cascade"}).notNull(),
         sex: sexEnum("sex").notNull(),
-        date_of_birth: date("date_of_birth").notNull(),
-        height_cm: numeric("height_cm", { precision: 5, scale: 2}).notNull(),
-        weight_kg: numeric("weight_kg", { precision: 5, scale: 2}).notNull(),
+        date_of_birth: date("date_of_birth", { mode: "date" }).notNull(),
+        height_cm: numeric("height_cm", { precision: 5, scale: 2, mode: "number"}).notNull(),
+        weight_kg: numeric("weight_kg", { precision: 5, scale: 2, mode: "number"}).notNull(),
         diagnosed_with: diagnosedWithEnum("diagnosed_with").notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
@@ -49,7 +50,7 @@ export const healthMetrics = createTable("health_metrics",
         id: uuid("id").primaryKey().defaultRandom(),
         profile_id: uuid("profile_id").references(() => profiles.id, {onDelete: "cascade"}).notNull(),
         daily_calorie_goal_kcal: integer("daily_calorie_goal_kcal").notNull(),
-        daily_carbohydrate_goal_g: numeric("daily_carbohydrate_goal_g", { precision: 5, scale: 2 }).notNull(),
+        daily_carbohydrate_goal_g: numeric("daily_carbohydrate_goal_g", { precision: 5, scale: 2, mode: "number" }).notNull(),
         reminder_frequency: integer("reminder_frequency").notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
@@ -82,7 +83,7 @@ export const bloodGlucoseMeasurements = createTable("blood_glucose_measurements"
     {
         id: uuid("id").primaryKey().defaultRandom(),
         profile_id: uuid("profile_id").references(() => profiles.id, {onDelete: "cascade"}).notNull(),
-        level: numeric("level", {precision: 5, scale: 2}).notNull(),
+        level: numeric("level", {precision: 5, scale: 2, mode: "number"}).notNull(),
         units: bloodGlucoseUnitsEnum("units").notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
@@ -100,13 +101,13 @@ export const foodLogs = createTable("food_logs",
         id: uuid("id").primaryKey().defaultRandom(),
         profile_id: uuid("profile_id").references(() => profiles.id, {onDelete: "cascade"}).notNull(),
         food_name: varchar("food_name", {length: 255}).notNull(),
-        serving_size_g: numeric("serving_size_g", {precision: 6, scale: 2}).notNull(),
+        serving_size_g: numeric("serving_size_g", {precision: 6, scale: 2, mode: "number"}).notNull(),
         number_of_servings: integer("number_of_servings").notNull(),
         meal_type: mealTypeEnum("meal_type").notNull(),
         calories_kcal: integer("calories_kcal").notNull(),
-        carbohydrates_g: numeric("carbohydrates_g", {precision: 5, scale: 2}).notNull(),
-        protein_g: numeric("protein_g", {precision: 5, scale: 2}).notNull(),
-        fat_g: numeric("fat_g", {precision: 5, scale: 2}).notNull(),
+        carbohydrates_g: numeric("carbohydrates_g", {precision: 5, scale: 2, mode: "number"}).notNull(),
+        protein_g: numeric("protein_g", {precision: 5, scale: 2, mode: "number"}).notNull(),
+        fat_g: numeric("fat_g", {precision: 5, scale: 2, mode: "number"}).notNull(),
         source_type: foodSourceTypeEnum("source_type").notNull(),
         source_id: varchar("source_id", {length: 255}).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
@@ -161,8 +162,8 @@ export const carbohydrateData = createTable("carbohydrate_data",
     {
         id: uuid("id").primaryKey().defaultRandom(),
         profile_id: uuid("profile_id").references(() => profiles.id, {onDelete: "cascade"}).notNull(),
-        carbohydrate_goal_g: numeric("carbohydrate_goal_g", {precision: 5, scale: 2}).notNull(),
-        carbohydrate_actual_g: numeric("carbohydrate_actual_g", {precision: 5, scale: 2}).notNull(),
+        carbohydrate_goal_g: numeric("carbohydrate_goal_g", {precision: 5, scale: 2, mode: "number"}).notNull(),
+        carbohydrate_actual_g: numeric("carbohydrate_actual_g", {precision: 5, scale: 2, mode: "number"}).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
     },
     (t) => [
@@ -237,3 +238,47 @@ export const carbohydrateDataRelations = relations(carbohydrateData, ({ one }) =
         references: [profiles.id]
     })
 }))
+
+
+export type Account = typeof accounts.$inferSelect;
+export type Profile = typeof profiles.$inferSelect;
+export type HealthMetric = typeof healthMetrics.$inferSelect;
+export type BloodPressureMeasurement = typeof bloodPressureMeasurements.$inferSelect;
+export type BloodGlucoseMeasurement = typeof bloodGlucoseMeasurements.$inferSelect;
+export type FoodLog = typeof foodLogs.$inferSelect;
+export type FAQ = typeof faqs.$inferSelect;
+export type Inquiry = typeof inquiries.$inferSelect;
+export type CalorieData = typeof calorieData.$inferSelect;
+export type CarbohydrateData = typeof carbohydrateData.$inferSelect;
+
+
+export const insertProfileSchema = createInsertSchema(profiles)
+export const selectProfileSchema = createSelectSchema(profiles)
+
+export const insertHealthMetricSchema = createInsertSchema(healthMetrics)
+export const selectHealthMetricSchema = createSelectSchema(healthMetrics)
+
+export const insertBloodPressureMeasurementSchema = createInsertSchema(bloodPressureMeasurements)
+export const selectBloodPressureMeasurementSchema = createSelectSchema(bloodPressureMeasurements)
+
+export const insertBloodGlucoseMeasurementSchema = createInsertSchema(bloodGlucoseMeasurements)
+export const selectBloodGlucoseMeasurementSchema = createSelectSchema(bloodGlucoseMeasurements)
+
+export const insertFoodLogSchema = createInsertSchema(foodLogs)
+export const selectFoodLogSchema = createSelectSchema(foodLogs)
+
+export const insertFAQSchema = createInsertSchema(faqs)
+export const selectFAQSchema = createSelectSchema(faqs)
+
+export const insertInquirySchema = createInsertSchema(inquiries)
+export const selectInquirySchema = createSelectSchema(inquiries)
+
+export const insertCalorieDataSchema = createInsertSchema(calorieData)
+export const selectCalorieDataSchema = createSelectSchema(calorieData)
+
+export const insertCarbohydrateDataSchema = createInsertSchema(carbohydrateData)
+export const selectCarbohydrateDataSchema = createSelectSchema(carbohydrateData)
+
+
+
+
