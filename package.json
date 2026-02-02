@@ -1,0 +1,55 @@
+{
+  "name": "api_design_nodejs_frontendmasters",
+  "version": "1.0.0",
+  "private": "true",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:authSeed": "node src/db/authSeed.ts",
+    "db:contactSeed": "node src/db/contactSeed.ts",
+    "db:dashboardSeed": "node src/db/dashboardSeed.ts",
+    "db:faqsSeed": "node src/db/faqsSeed.ts",
+    "db:foodLogsSeed": "node src/db/foodLogsSeed.ts",
+    "db:healthSeed": "node src/db/healthSeed.ts",
+    "db:reportSeed": "node src/db/reportSeed.ts",
+    "db:settingsSeed": "node src/db/settingsSeed.ts",
+    "db:initialSeed": "node src/db/initialSeed.ts",
+    "dev": "node --watch src/index.ts"
+  },
+  "license": "MIT",
+  "author": "eisBlume0901",
+  "homepage": "https://github.com/CarboTrackr2025/carbotrackr-node-express/#readme",
+  "bugs": {
+    "url": "https://github.com/CarboTrackr2025/carbotrackr-node-express/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CarboTrackr2025/carbotrackr-node-express.git"
+  },
+  "dependencies": {
+    "@epic-web/remember": "^1.1.0",
+    "custom-env": "^2.0.6",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.1",
+    "drizzle-zod": "^0.8.3",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.1",
+    "pg": "^8.18.0",
+    "ts-node": "^10.9.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.1.0",
+    "drizzle-kit": "^0.31.8",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.9.3"
+  }
+}
