@@ -1,11 +1,12 @@
 import { Router } from "express"
+import { createAccount, listUserIds } from "../controller/authController.ts"
 
 const router = Router()
 
-// Define here your routes.
+// Create an account (creates Clerk user and DB record)
+router.post("/register", createAccount)
 
-
-
-
+// List Clerk user IDs (test; no auth)
+router.get("/users", listUserIds)
 
 export default router
