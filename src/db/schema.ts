@@ -17,9 +17,8 @@ import {createInsertSchema, createSelectSchema} from "drizzle-zod";
 const createTable = pgTableCreator((name) => name)
 
 
-// Schema for users can be changed depending on Clerk integration
 export const accounts = createTable("accounts", {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: varchar("id", { length: 255 }).primaryKey(),
     email: varchar("email", { length: 255}).notNull().unique(),
 })
 
@@ -28,8 +27,8 @@ export const sexEnum = pgEnum("sex", ["MALE", "FEMALE"])
 export const diagnosedWithEnum = pgEnum("diagnosed_with", ["TYPE_2_DIABETES", "PRE_DIABETES", "NOT_APPLICABLE"])
 export const profiles = createTable("profiles",
     {
-        id: uuid("id").primaryKey().defaultRandom(),
-        account_id: uuid("account_id").references(() => accounts.id, {onDelete: "cascade"}).notNull(),
+        id: varchar("id", { length: 255 }).primaryKey(),
+        account_id: varchar("account_id", { length: 255 }).references(() => accounts.id, {onDelete: "cascade"}).notNull(),
         sex: sexEnum("sex").notNull(),
         date_of_birth: date("date_of_birth", { mode: "date" }).notNull(),
         height_cm: numeric("height_cm", { precision: 5, scale: 2, mode: "number"}).notNull(),
@@ -48,7 +47,8 @@ export const profiles = createTable("profiles",
 export const healthMetrics = createTable("health_metrics",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        profile_id: uuid("profile_id").references(() => profiles.id, {onDelete: "cascade"}).notNull(),
+        // profile_id now varchar to reference profiles.id
+        profile_id: varchar("profile_id", { length: 255 }).references(() => (profiles as any).id, {onDelete: "cascade"}).notNull(),
         daily_calorie_goal_kcal: integer("daily_calorie_goal_kcal").notNull(),
         daily_carbohydrate_goal_g: numeric("daily_carbohydrate_goal_g", { precision: 5, scale: 2, mode: "number" }).notNull(),
         reminder_frequency: integer("reminder_frequency").notNull(),
@@ -66,7 +66,7 @@ export const healthMetrics = createTable("health_metrics",
 export const bloodPressureMeasurements = createTable("blood_pressure_measurements",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        profile_id: uuid("profile_id").references(() => profiles.id, {onDelete: "cascade"}).notNull(),
+        profile_id: varchar("profile_id", { length: 255 }).references(() => (profiles as any).id, {onDelete: "cascade"}).notNull(),
         systolic_mmHg: integer("systolic_mmHg").notNull(),
         diastolic_mmHg: integer("diastolic_mmHg").notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
@@ -82,7 +82,7 @@ export const bloodGlucoseUnitsEnum = pgEnum("blood_glucose_units", ["MG_DL", "MM
 export const bloodGlucoseMeasurements = createTable("blood_glucose_measurements",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        profile_id: uuid("profile_id").references(() => profiles.id, {onDelete: "cascade"}).notNull(),
+        profile_id: varchar("profile_id", { length: 255 }).references(() => (profiles as any).id, {onDelete: "cascade"}).notNull(),
         level: numeric("level", {precision: 5, scale: 2, mode: "number"}).notNull(),
         units: bloodGlucoseUnitsEnum("units").notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
@@ -99,7 +99,7 @@ export const foodSourceTypeEnum = pgEnum("food_source_type", ["FAT_SECRET_API", 
 export const foodLogs = createTable("food_logs",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        profile_id: uuid("profile_id").references(() => profiles.id, {onDelete: "cascade"}).notNull(),
+        profile_id: varchar("profile_id", { length: 255 }).references(() => (profiles as any).id, {onDelete: "cascade"}).notNull(),
         food_name: varchar("food_name", {length: 255}).notNull(),
         serving_size_g: numeric("serving_size_g", {precision: 6, scale: 2, mode: "number"}).notNull(),
         number_of_servings: integer("number_of_servings").notNull(),
@@ -146,7 +146,7 @@ export const inquiries = createTable("inquiries", {
 export const calorieData = createTable("calorie_data",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        profile_id: uuid("profile_id").references(() => profiles.id, {onDelete: "cascade"}).notNull(),
+        profile_id: varchar("profile_id", { length: 255 }).references(() => (profiles as any).id, {onDelete: "cascade"}).notNull(),
         calorie_goal_kcal: integer("calorie_goal_kcal").notNull(),
         calorie_actual_kcal: integer("calorie_actual_kcal").notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
@@ -161,7 +161,7 @@ export const calorieData = createTable("calorie_data",
 export const carbohydrateData = createTable("carbohydrate_data",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        profile_id: uuid("profile_id").references(() => profiles.id, {onDelete: "cascade"}).notNull(),
+        profile_id: varchar("profile_id", { length: 255 }).references(() => (profiles as any).id, {onDelete: "cascade"}).notNull(),
         carbohydrate_goal_g: numeric("carbohydrate_goal_g", {precision: 5, scale: 2, mode: "number"}).notNull(),
         carbohydrate_actual_g: numeric("carbohydrate_actual_g", {precision: 5, scale: 2, mode: "number"}).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
@@ -193,49 +193,49 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
 
 
 export const healthMetricsRelations = relations(healthMetrics, ({ one }) => ({
-    profile: one(profiles, {
+    profile: one(profiles as any, {
         fields: [healthMetrics.profile_id],
-        references: [profiles.id]
+        references: [(profiles as any).id]
     })
 }))
 
 
 export const bloodPressureMeasurementsRelations = relations(bloodPressureMeasurements, ({ one }) => ({
-    profile: one(profiles, {
+    profile: one(profiles as any, {
         fields: [bloodPressureMeasurements.profile_id],
-        references: [profiles.id]
+        references: [(profiles as any).id]
     })
 }))
 
 
 export const bloodGlucoseMeasurementsRelations = relations(bloodGlucoseMeasurements, ({ one }) => ({
-    profile: one(profiles, {
+    profile: one(profiles as any, {
         fields: [bloodGlucoseMeasurements.profile_id],
-        references: [profiles.id]
+        references: [(profiles as any).id]
     })
 }))
 
 
 export const foodLogsRelations = relations(foodLogs, ({ one }) => ({
-    profile: one(profiles, {
+    profile: one(profiles as any, {
         fields: [foodLogs.profile_id],
-        references: [profiles.id]
+        references: [(profiles as any).id]
     })
 }))
 
 
 export const calorieDataRelations = relations(calorieData, ({ one }) => ({
-    profile: one(profiles, {
+    profile: one(profiles as any, {
         fields: [calorieData.profile_id],
-        references: [profiles.id]
+        references: [(profiles as any).id]
     })
 }))
 
 
 export const carbohydrateDataRelations = relations(carbohydrateData, ({ one }) => ({
-    profile: one(profiles, {
+    profile: one(profiles as any, {
         fields: [carbohydrateData.profile_id],
-        references: [profiles.id]
+        references: [(profiles as any).id]
     })
 }))
 
@@ -278,7 +278,3 @@ export const selectCalorieDataSchema = createSelectSchema(calorieData)
 
 export const insertCarbohydrateDataSchema = createInsertSchema(carbohydrateData)
 export const selectCarbohydrateDataSchema = createSelectSchema(carbohydrateData)
-
-
-
-
