@@ -77,8 +77,19 @@ export const viewBloodPressureReport = async (req: Request, res: Response) => {
         }
 
 
-        const start = new Date(`${start_date}T00:00:00.000Z`)
-        const end = new Date(`${end_date}T00:00:00.000Z`)
+        const parseStart = (raw: string) => {
+            if (raw.includes("T")) return new Date(raw);
+            return new Date(`${raw}T00:00:00.000Z`);
+        };
+
+        const parseEnd = (raw: string) => {
+            if (raw.includes("T")) return new Date(raw);
+            return new Date(`${raw}T23:59:59.999Z`);
+        };
+
+        const start = parseStart(start_date);
+        const end = parseEnd(end_date);
+
 
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
             return res.status(400).json({
