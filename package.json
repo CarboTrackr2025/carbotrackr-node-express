@@ -31,6 +31,7 @@
     "url": "git+https://github.com/CarboTrackr2025/carbotrackr-node-express.git"
   },
   "dependencies": {
+    "@clerk/express": "^1.7.67",
     "@epic-web/remember": "^1.1.0",
     "custom-env": "^2.0.6",
     "dotenv": "^17.2.3",

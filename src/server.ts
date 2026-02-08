@@ -9,6 +9,7 @@ import healthRoutes from "./routes/healthRoutes.ts";
 import reportRoutes from "./routes/reportRoutes.ts"
 import scannerRoutes from "./routes/scannerRoutes.ts"
 import settingsRoutes from "./routes/settingsRoutes.ts";
+import { clerkClient, clerkMiddleware } from "@clerk/express";
 
 
 const app = express()
@@ -16,6 +17,23 @@ const app = express()
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+app.use(clerkMiddleware())
+
+
+// Root route: temporary test endpoint to return only Clerk userIds (no auth required)
+app.get("/", async (req: Request, res: Response) => {
+    try {
+        const usersPage = await clerkClient.users.getUserList()
+        const userIds = usersPage.data.map(u => u.id)
+        return res.status(200).json(userIds)
+    } catch (error: any) {
+        return res.status(500).json({
+            status: "Error",
+            message: error?.message ?? "Unexpected error",
+            timestamp: new Date().toISOString(),
+        })
+    }
+})
 
 
 app.use("/auth", authRoutes)
