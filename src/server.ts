@@ -1,3 +1,4 @@
+import env from "../env.ts"
 import express from "express"
 import type { Request, Response } from "express"
 import authRoutes from "./routes/authRoutes.ts"
@@ -5,14 +6,15 @@ import contactRoutes from "./routes/contactRoutes.ts"
 import dashboardRoutes from "./routes/dashboardRoutes.ts"
 import faqsRoutes from "./routes/faqsRoutes.ts"
 import foodLogsRoutes from "./routes/foodLogsRoutes.ts"
-import healthRoutes from "./routes/healthRoutes.ts";
+import healthRoutes from "./routes/healthRoutes.ts"
 import reportRoutes from "./routes/reportRoutes.ts"
 import scannerRoutes from "./routes/scannerRoutes.ts"
-import settingsRoutes from "./routes/settingsRoutes.ts";
-import { clerkClient, clerkMiddleware } from "@clerk/express";
+import settingsRoutes from "./routes/settingsRoutes.ts"
+import { clerkClient, clerkMiddleware } from "@clerk/express"
 
 
 const app = express()
+
 
 
 app.use(express.json())
