@@ -19,6 +19,30 @@ const app = express()
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+
+// Lightweight CORS middleware to support cookies/credentials in development and controlled environments.
+// - echoes back the request Origin as Access-Control-Allow-Origin (safer than '*') so the browser will accept credentials
+// - sets Access-Control-Allow-Credentials so cookies can be sent/accepted by browsers
+// - handles preflight OPTIONS requests
+app.use((req: Request, res: Response, next) => {
+    const origin = req.headers.origin || ""
+    // In production you should replace this with a specific allowed origin from configuration
+    if (origin) {
+        res.header('Access-Control-Allow-Origin', origin)
+    } else {
+        res.header('Access-Control-Allow-Origin', '*')
+    }
+    res.header('Access-Control-Allow-Credentials', 'true')
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
+
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200)
+    }
+
+    next()
+})
+
 app.use(clerkMiddleware())
 
 
@@ -36,6 +60,7 @@ app.get("/", async (req: Request, res: Response) => {
         })
     }
 })
+
 
 
 app.use("/auth", authRoutes)

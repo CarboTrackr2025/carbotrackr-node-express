@@ -257,7 +257,12 @@ export async function loginUser(req: Request, res: Response) {
             try {
                 // Ensure account exists
                 try {
-                    await db.insert(accounts).values({ id: userId, email: userEmail })
+                    // Only insert account when we have an email to satisfy the NOT NULL constraint on accounts.email
+                    if (userEmail) {
+                        await db.insert(accounts).values({ id: userId, email: userEmail })
+                    } else {
+                        // No email available; skip inserting into accounts to avoid NOT NULL constraint violation
+                    }
                 } catch (insertErr: any) {
                     const pgCode = insertErr?.code || insertErr?.pgCode
                     if (pgCode === '23505') {
@@ -279,22 +284,62 @@ export async function loginUser(req: Request, res: Response) {
 
         // Return session info to client. Preferred: set HttpOnly cookie if we have a sessionToken; otherwise return JSON with sessionId and user info.
         if (sessionToken) {
-            // Set cookie named "__session" by default. Adjust attributes as appropriate for your deployment (Secure must be true in production over HTTPS).
-            const isSecure = process.env.NODE_ENV === 'production'
-            res.cookie('__session', sessionToken, {
-                httpOnly: true,
-                secure: isSecure,
-                sameSite: 'lax',
-                path: '/',
-                // If expiresAt was provided, set maxAge
-                maxAge: expiresAt ? Math.max(0, new Date(expiresAt).getTime() - Date.now()) : undefined,
-            })
-
-            return res.status(200).json({ userId, email: userEmail, message: 'Signed in', method: 'cookie' })
+            // For React Native and token-based clients, return the session token in JSON instead of relying on cookies.
+            return res.status(200).json({ userId, email: userEmail, token: sessionToken, message: 'Signed in', method: 'token' })
         }
 
-        // If we have a sessionId but no token, return the sessionId and user info
+        // If we have a sessionId but no token, attempt to exchange sessionId for a session token (so we can set a cookie), otherwise return the sessionId and user info
         if (sessionId) {
+            // Try to exchange sessionId for a token via Clerk REST API if we have a server key
+            try {
+                const clerkApiKey = env.CLERK_API_KEY ?? env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET
+                if (clerkApiKey && typeof fetch !== 'undefined') {
+                    try {
+                        const tokenEndpoints = [
+                            `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}/tokens`,
+                            `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}/token`,
+                        ]
+                        let tokenRespText: string | undefined = undefined
+                        let tokenJson: any = undefined
+                        for (const url of tokenEndpoints) {
+                            try {
+                                const tokenResp = await fetch(url, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': `Bearer ${clerkApiKey}`,
+                                        'Content-Type': 'application/json'
+                                    },
+                                    // some Clerk endpoints accept empty body; send an empty JSON
+                                    body: JSON.stringify({}),
+                                })
+                                tokenRespText = await tokenResp.text()
+                                if (!tokenResp.ok) {
+                                    // try next endpoint
+                                    continue
+                                }
+                                try { tokenJson = JSON.parse(tokenRespText) } catch (e) { tokenJson = tokenRespText }
+                                break
+                            } catch (e) {
+                                // try next
+                                continue
+                            }
+                        }
+
+                        // Look for token in many possible fields (including Clerk's jwt field)
+                        const possibleToken = tokenJson?.token ?? tokenJson?.sessionToken ?? tokenJson?.jwt ?? tokenJson?.client_secret ?? tokenJson?.client_secret_value ?? tokenJson?.data?.token ?? tokenJson?.data?.sessionToken ?? undefined
+                        if (possibleToken && typeof possibleToken === 'string') {
+                            // Return the token in JSON for mobile clients instead of setting a cookie
+                            return res.status(200).json({ userId, email: userEmail, token: possibleToken, message: 'Signed in', method: 'token' })
+                        }
+                    } catch (ex) {
+                        // ignore exchange errors and fall back to returning sessionId
+                        if (isDev()) console.error('Clerk session token exchange error:', ex)
+                    }
+                }
+            } catch (outerEx) {
+                // ignore
+            }
+
             return res.status(200).json({ userId, email: userEmail, sessionId, message: 'Signed in', method: 'sessionId' })
         }
 
@@ -324,3 +369,78 @@ export async function listUserIds(_req: Request, res: Response) {
     }
 }
 
+// POST /auth/refresh - refresh a session token using sessionId or an expired token
+export async function refreshToken(req: Request, res: Response) {
+    try {
+        // Try body.sessionId first
+        let sessionId: string | undefined = req.body?.sessionId
+
+        // If still no sessionId, allow several flexible token inputs:
+        // - body.token: can be raw token, or 'Bearer <token>' (with or without angle brackets)
+        // - Authorization header: case-insensitive 'Bearer <token>'
+        if (!sessionId) {
+            let tokenCandidate: string | undefined
+
+            // Accept token in body (token may be 'Bearer <...>' or raw)
+            const bodyToken = req.body?.token
+            if (typeof bodyToken === 'string' && bodyToken.trim()) {
+                tokenCandidate = bodyToken.trim()
+            }
+
+            // If no body token, fall back to Authorization header (case-insensitive)
+            if (!tokenCandidate) {
+                const authHeader = (req.headers.authorization ?? req.headers.Authorization ?? '') as string
+                // Match 'Bearer <token>' case-insensitive, allow optional angle brackets
+                const m = authHeader.match(/^\s*Bearer\s+<?(.+?)>?\s*$/i)
+                if (m) tokenCandidate = m[1]
+            }
+
+            // Normalize tokenCandidate: strip surrounding quotes or angle brackets if any
+            if (tokenCandidate) {
+                tokenCandidate = tokenCandidate.replace(/^\s*["'`]?<?/, '').replace(/>?["'`]?\s*$/, '')
+            }
+
+            // If we have a token candidate, try to decode JWT payload to extract sid/session_id
+            if (tokenCandidate) {
+                try {
+                    const parts = tokenCandidate.split('.')
+                    if (parts.length >= 2) {
+                        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+                        const payloadJson = Buffer.from(b64, 'base64').toString('utf8')
+                        const payload = JSON.parse(payloadJson)
+                        sessionId = payload?.sid ?? payload?.session_id ?? sessionId
+                    }
+                } catch (e) {
+                    // ignore decode errors
+                }
+            }
+        }
+
+        if (!sessionId) {
+            return res.status(400).json({ message: 'sessionId must be provided in body or extractable from Authorization token' })
+        }
+
+        const clerkApiKey = env.CLERK_API_KEY ?? env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET
+        if (!clerkApiKey) return res.status(500).json({ message: 'Server missing Clerk API key' })
+
+        const url = `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}/tokens`
+        try {
+            const resp = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${clerkApiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+            const text = await resp.text()
+            if (!resp.ok) {
+                return res.status(resp.status >= 400 && resp.status < 600 ? resp.status : 502).json({ message: 'failed to refresh token', upstreamStatus: resp.status, upstreamBody: text })
+            }
+            let json: any
+            try { json = JSON.parse(text) } catch (e) { json = text }
+            const token = json?.jwt ?? json?.token ?? json?.sessionToken ?? undefined
+            if (token && typeof token === 'string') {
+                return res.status(200).json({ token })
+            }
+            return res.status(502).json({ message: 'no token returned from auth provider', upstreamBody: json })
+        } catch (err: any) {
+            return res.status(502).json({ message: 'error contacting auth provider', details: String(err) })
+        }
+    } catch (err: any) {
+        return res.status(500).json({ message: err?.message ?? 'Unexpected error' })
+    }
+}
