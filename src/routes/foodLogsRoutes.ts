@@ -1,5 +1,5 @@
 import { Router } from "express"
-import { getFoodByName } from "../controller/foodLogsController.ts";
+import { getFoodByName, getFoodById } from "../controller/foodLogsController.ts";
 
 
 const router = Router()
@@ -7,7 +7,8 @@ const router = Router()
 // Define here your routes.
 
 
-router.get("/search/", getFoodByName);
+router.get("/search", getFoodByName);
+router.get("/food/:food_id", getFoodById);
 
 
 export default router
