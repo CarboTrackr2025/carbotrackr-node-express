@@ -7,19 +7,19 @@ import {foodLogs} from "../db/schema.ts"
 import { buildBaseString, buildNormalizedParams, normalizeToArray, signHmacSha1, toNumber } from "../utils/foodLogs.utils.ts"
 
 
-export const getFoodByName = async (req: Request, res: Response) => {
+export const getFoodByQuery = async (req: Request, res: Response) => {
     try {
-        const food_name = String(req.query.food_name ?? "").trim()
-        if (!food_name) {
-            return res.status(400).json({ error: "food_name query param is required" })
+        const q = String(req.query.q ?? "").trim()
+        if (!q) {
+            return res.status(400).json({ error: "q query param is required" })
         }
 
-        // ✅ correct defaults for your desired behavior
         const page_number =
             Number.isFinite(Number(req.query.page_number)) ? String(Number(req.query.page_number)) : "0"
 
+        // ✅ increase FOOD results so branded items can appear
         const max_results =
-            Number.isFinite(Number(req.query.max_results)) ? String(Number(req.query.max_results)) : "1"
+            Number.isFinite(Number(req.query.max_results)) ? String(Number(req.query.max_results)) : "20"
 
         const oauth_consumer_key = env.FAT_SECRET_CONSUMER_KEY
         const oauth_consumer_secret = env.FAT_SECRET_CONSUMER_SECRET
@@ -39,11 +39,10 @@ export const getFoodByName = async (req: Request, res: Response) => {
             oauth_version: "1.0",
         }
 
-        // ⚠️ FatSecret expects params as strings
         const apiParams: Record<string, string> = {
             method: methodName,
             format: "json",
-            search_expression: food_name,
+            search_expression: q, // ✅ user can type "Heinz Baked Beans"
             page_number,
             max_results,
         }
@@ -57,29 +56,28 @@ export const getFoodByName = async (req: Request, res: Response) => {
 
         const { data } = await axios.get(url, { params: requestParams, timeout: 15000 })
 
-        const foodsSearch = data?.foods_search
-        const foods = normalizeToArray(foodsSearch?.results?.food)
+        const foods = normalizeToArray(data?.foods_search?.results?.food)
+        const f = foods[0] // ✅ pick best match per FatSecret ordering
 
-        // ✅ you want ONE food only
-        const f = foods[0]
         if (!f) {
-            return res.status(404).json({
-                query: food_name,
-                food: null,
-            })
+            return res.status(404).json({ query: q, food: null })
         }
 
+        // ✅ DO NOT SLICE -> return ALL servings
         const servings = normalizeToArray(f?.servings?.serving).map((s: any) => ({
             serving_id: s?.serving_id != null ? String(s.serving_id) : null,
             serving_description: s?.serving_description ?? null,
             calories: toNumber(s?.calories),
         }))
 
+        // ✅ brand included in food_name
+        const displayName = [f?.brand_name, f?.food_name].filter(Boolean).join(" ")
+
         return res.json({
-            query: food_name,
+            query: q,
             food: {
                 food_id: f?.food_id != null ? String(f.food_id) : null,
-                food_name: f?.food_name ?? null,
+                food_name: displayName || null,
                 servings,
             },
         })

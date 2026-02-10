@@ -1,5 +1,5 @@
 import { Router } from "express"
-import { getFoodByName, getFoodDetailsByServingId } from "../controller/foodLogsController.ts";
+import { getFoodByQuery, getFoodDetailsByServingId } from "../controller/foodLogsController.ts";
 
 
 const router = Router()
@@ -7,7 +7,7 @@ const router = Router()
 // Define here your routes.
 
 
-router.get("/search", getFoodByName);
+router.get("/search", getFoodByQuery);
 router.get("/food/:food_id/serving/:serving_id", getFoodDetailsByServingId);
 
 
