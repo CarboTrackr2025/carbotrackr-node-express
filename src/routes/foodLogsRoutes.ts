@@ -1,5 +1,5 @@
 import { Router } from "express"
-import { getFoodByName, getFoodById } from "../controller/foodLogsController.ts";
+import { getFoodByName, getFoodDetailsByServingId } from "../controller/foodLogsController.ts";
 
 
 const router = Router()
@@ -8,7 +8,7 @@ const router = Router()
 
 
 router.get("/search", getFoodByName);
-router.get("/food/:food_id", getFoodById);
+router.get("/food/:food_id/serving/:serving_id", getFoodDetailsByServingId);
 
 
 export default router
