@@ -100,261 +100,69 @@ export async function loginUser(req: Request, res: Response) {
             return res.status(400).json({ message: `password must be at least ${MIN_PASSWORD_LENGTH} characters` })
         }
 
-        // Try Clerk server-side sign-in. The Clerk SDK can expose different method names across versions; use dynamic access to be resilient.
-        let signInResult: any
+        // Require a server-side Clerk key to perform server-side sign-in and token exchange
+        const clerkApiKey = env.CLERK_API_KEY ?? env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET_KEY ?? process.env.CLERK_API_KEY
+        if (!clerkApiKey) return res.status(500).json({ message: 'Server is not configured with Clerk API key' })
+
+        // Lookup the Clerk user by email to obtain user_id (prevents the "user_id must be included" 422 error)
+        let clerkUser
         try {
-            const signInApi = (clerkClient as any).signIn ?? (clerkClient as any).sign_in ?? (clerkClient as any)
-            if (typeof signInApi?.create === 'function') {
-                // use Clerk SDK signIn.create
-                signInResult = await signInApi.create({ identifier: email, password })
-            } else if (typeof (clerkClient as any).authenticate === 'function') {
-                // fallback: hypothetical authenticate
-                signInResult = await (clerkClient as any).authenticate({ identifier: email, password })
-            } else {
-                // As a final fallback, attempt to call Clerk REST API using fetch if available
-                if (typeof fetch !== 'undefined') {
-                    // Prefer the parsed env values from env.ts so custom-env/loadEnv is respected
-                    const clerkApiKey = env.CLERK_API_KEY ?? env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET
-                    if (!clerkApiKey) {
-                        return res.status(500).json({ message: 'Server is not configured with Clerk API key' })
-                    }
-                    const clerkUrl = 'https://api.clerk.com/v1/sign_in'
+            const usersPage = await clerkClient.users.getUserList({ emailAddress: [email], limit: 1 })
+            clerkUser = usersPage?.data?.[0]
+            if (!clerkUser) return res.status(401).json({ message: 'Invalid email or password' })
+        } catch (lookupErr: any) {
+            console.error('Clerk user lookup error:', lookupErr)
+            return res.status(502).json({ message: 'Authentication service error' })
+        }
 
-                    // Try to lookup clerk user id by email first to avoid "user_id must be included" errors
-                    let payload: any = { identifier: email, password }
-                    try {
-                        const usersPage = await clerkClient.users.getUserList({ emailAddress: [email], limit: 1 })
-                        const first = usersPage?.data?.[0]
-                        if (first?.id) {
-                            payload = { user_id: first.id, password }
-                        } else {
-                            return res.status(401).json({ message: 'Invalid email or password' })
-                        }
-                    } catch (lookupErr: any) {
-                        return res.status(500).json({ message: 'Authentication service error', details: isDev() ? String(lookupErr) : undefined })
-                    }
-
-                    let resp = await fetch(clerkUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'Authorization': `Bearer ${clerkApiKey}`,
-                        },
-                        body: new URLSearchParams(payload).toString(),
-                    })
-                    let text = await resp.text()
-                    // If clerk responds non-OK, attempt targeted retries for known error shapes
-                    if (!resp.ok) {
-                        let parsed: any = undefined
-                        try { parsed = JSON.parse(text) } catch (e) { /* ignore parse errors */ }
-                        const saysUserIdMissing = resp.status === 422 && parsed?.errors && Array.isArray(parsed.errors) && parsed.errors.some((e: any) => e?.meta?.param_name === 'user_id' || e?.message?.includes('user_id'))
-
-                        if (saysUserIdMissing) {
-                            try {
-                                const usersPage2 = await clerkClient.users.getUserList({ emailAddress: [email], limit: 1 })
-                                const first2 = usersPage2?.data?.[0]
-                                if (first2?.id) {
-                                    const userIdToUse = first2.id
-                                    resp = await fetch(clerkUrl, {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/x-www-form-urlencoded',
-                                            'Authorization': `Bearer ${clerkApiKey}`,
-                                        },
-                                        body: new URLSearchParams({ user_id: userIdToUse, password }).toString(),
-                                    })
-                                    text = await resp.text()
-                                }
-                            } catch (lookupErr: any) {
-                                console.error('Clerk sign-in: error looking up user by email for retry:', lookupErr)
-                            }
-                        }
-
-                        // If still not OK, try sessions endpoint fallback (previous behavior)
-                        if (!resp.ok) {
-                            if (resp.status === 404) {
-                                const altUrl = 'https://api.clerk.com/v1/sessions'
-                                const sessionsPayload: any = payload?.user_id ? { user_id: payload.user_id, password } : { email_address: email, password }
-                                resp = await fetch(altUrl, {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/x-www-form-urlencoded',
-                                        'Authorization': `Bearer ${clerkApiKey}`,
-                                    },
-                                    body: new URLSearchParams(sessionsPayload).toString(),
-                                })
-                                text = await resp.text()
-                            }
-                        }
-
-                        if (!resp.ok) {
-                            const clientStatus = resp.status >= 400 && resp.status < 600 ? resp.status : 502
-                            return res.status(clientStatus).json({ message: 'Authentication failed', upstreamStatus: resp.status, upstreamBody: text })
-                        }
-                    }
-                    try {
-                        signInResult = JSON.parse(text)
-                    } catch (parseErr) {
-                        signInResult = text
-                    }
-                } else {
-                    return res.status(501).json({ message: 'Server-side sign-in is not supported by configured Clerk SDK' })
-                }
-            }
+        // Create a session for the user using Clerk REST sessions endpoint
+        const sessionsUrl = 'https://api.clerk.com/v1/sessions'
+        let resp
+        try {
+            resp = await fetch(sessionsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': `Bearer ${clerkApiKey}`,
+                },
+                body: new URLSearchParams({ user_id: clerkUser.id, password }).toString(),
+            })
         } catch (err: any) {
-            console.error('Clerk sign-in error:', err)
-            const statusCode = err?.status || err?.statusCode || (err?.status === 401 ? 401 : 401)
-            return res.status(statusCode).json({ message: err?.message ?? 'Invalid email or password', details: isDev() ? String(err) : undefined })
+            console.error('Clerk sessions request failed:', err)
+            return res.status(502).json({ message: 'Authentication service unreachable' })
         }
 
-        // signInResult shape varies between SDK versions. Try to extract useful session/token info in a robust way.
-        let userId: string | undefined
-        let userEmail: string | undefined
-        let sessionId: string | undefined
-        let sessionToken: string | undefined
-        let expiresAt: string | undefined
-
-        try {
-            // Common shapes: { status: 'complete', createdSessionId, createdSession } or REST payload with user/session fields
-            if (signInResult) {
-                if (signInResult.status === 'complete') {
-                    sessionId = signInResult.createdSessionId ?? signInResult.created_session_id ?? sessionId
-                    sessionToken = signInResult.createdSessionToken ?? signInResult.created_session_token ?? sessionToken
-                    userId = signInResult.createdUserId ?? signInResult.userId ?? signInResult.user?.id
-                    userEmail = signInResult.user?.emailAddresses?.[0]?.emailAddress ?? signInResult.user?.email ?? undefined
-                    expiresAt = signInResult.expiresAt ?? signInResult.expires_at ?? undefined
-                } else if (signInResult.user) {
-                    userId = signInResult.user.id ?? userId
-                    userEmail = signInResult.user.email ?? userEmail
-                } else if (signInResult.id && signInResult.user_id) {
-                    // maybe a session object
-                    sessionId = signInResult.id
-                    userId = signInResult.user_id
-                } else if (signInResult.user_id || signInResult.userId) {
-                    userId = signInResult.user_id ?? signInResult.userId
-                }
-            }
-        } catch (extractErr: any) {
-            console.error('Error extracting sign-in result fields:', extractErr)
+        const text = await resp.text()
+        if (!resp.ok) {
+            return res.status(resp.status >= 400 && resp.status < 600 ? resp.status : 502).json({ message: 'Authentication failed', upstreamStatus: resp.status, upstreamBody: text })
         }
 
-        // If we don't have a userId but the email exists in Clerk, try to look up the user
-        if (!userId) {
-            try {
-                const usersPage = await clerkClient.users.getUserList({ emailAddress: [email], limit: 1 })
-                const first = usersPage?.data?.[0]
-                if (first) {
-                    userId = first.id
-                    userEmail = userEmail ?? first.emailAddresses?.[0]?.emailAddress
-                }
-            } catch (err) {
-                // ignore
-            }
+        let json: any
+        try { json = JSON.parse(text) } catch (e) { json = text }
+
+        // Clerk may return different shapes; prefer a token (jwt/sessionToken/token) when available for mobile clients
+        const token = json?.jwt ?? json?.token ?? json?.sessionToken ?? undefined
+        const sessionId = json?.id ?? json?.session_id ?? undefined
+
+        // NOTE: removed automatic local DB insertion on login. Creating or syncing
+        // local `accounts` rows should happen at registration time or via an explicit
+        // sync/upsert operation. This prevents duplicate-key errors and avoids
+        // modifying the DB as a side-effect of authentication.
+
+        if (token) {
+            return res.status(200).json({ userId: clerkUser.id, email, token, message: 'Signed in', method: 'token' })
         }
 
-        // Persist minimal local account/profile if missing (non-blocking)
-        if (userId) {
-            try {
-                // Ensure account exists
-                try {
-                    // Only insert account when we have an email to satisfy the NOT NULL constraint on accounts.email
-                    if (userEmail) {
-                        await db.insert(accounts).values({ id: userId, email: userEmail })
-                    } else {
-                        // No email available; skip inserting into accounts to avoid NOT NULL constraint violation
-                    }
-                } catch (insertErr: any) {
-                    const pgCode = insertErr?.code || insertErr?.pgCode
-                    if (pgCode === '23505') {
-                        // already exists
-                    } else {
-                        console.error('Insert account on login error:', insertErr)
-                    }
-                }
-                // Ensure profile exists
-                try {
-                    await db.insert(profiles).values({ id: userId, account_id: userId } as any)
-                } catch (profileErr: any) {
-                    // non-fatal
-                }
-            } catch (dbErr: any) {
-                console.error('DB sync error after login:', dbErr)
-            }
-        }
-
-        // Return session info to client. Preferred: set HttpOnly cookie if we have a sessionToken; otherwise return JSON with sessionId and user info.
-        if (sessionToken) {
-            // For React Native and token-based clients, return the session token in JSON instead of relying on cookies.
-            return res.status(200).json({ userId, email: userEmail, token: sessionToken, message: 'Signed in', method: 'token' })
-        }
-
-        // If we have a sessionId but no token, attempt to exchange sessionId for a session token (so we can set a cookie), otherwise return the sessionId and user info
         if (sessionId) {
-            // Try to exchange sessionId for a token via Clerk REST API if we have a server key
-            try {
-                const clerkApiKey = env.CLERK_API_KEY ?? env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET
-                if (clerkApiKey && typeof fetch !== 'undefined') {
-                    try {
-                        const tokenEndpoints = [
-                            `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}/tokens`,
-                            `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}/token`,
-                        ]
-                        let tokenRespText: string | undefined = undefined
-                        let tokenJson: any = undefined
-                        for (const url of tokenEndpoints) {
-                            try {
-                                const tokenResp = await fetch(url, {
-                                    method: 'POST',
-                                    headers: {
-                                        'Authorization': `Bearer ${clerkApiKey}`,
-                                        'Content-Type': 'application/json'
-                                    },
-                                    // some Clerk endpoints accept empty body; send an empty JSON
-                                    body: JSON.stringify({}),
-                                })
-                                tokenRespText = await tokenResp.text()
-                                if (!tokenResp.ok) {
-                                    // try next endpoint
-                                    continue
-                                }
-                                try { tokenJson = JSON.parse(tokenRespText) } catch (e) { tokenJson = tokenRespText }
-                                break
-                            } catch (e) {
-                                // try next
-                                continue
-                            }
-                        }
-
-                        // Look for token in many possible fields (including Clerk's jwt field)
-                        const possibleToken = tokenJson?.token ?? tokenJson?.sessionToken ?? tokenJson?.jwt ?? tokenJson?.client_secret ?? tokenJson?.client_secret_value ?? tokenJson?.data?.token ?? tokenJson?.data?.sessionToken ?? undefined
-                        if (possibleToken && typeof possibleToken === 'string') {
-                            // Return the token in JSON for mobile clients instead of setting a cookie
-                            return res.status(200).json({ userId, email: userEmail, token: possibleToken, message: 'Signed in', method: 'token' })
-                        }
-                    } catch (ex) {
-                        // ignore exchange errors and fall back to returning sessionId
-                        if (isDev()) console.error('Clerk session token exchange error:', ex)
-                    }
-                }
-            } catch (outerEx) {
-                // ignore
-            }
-
-            return res.status(200).json({ userId, email: userEmail, sessionId, message: 'Signed in', method: 'sessionId' })
+            return res.status(200).json({ userId: clerkUser.id, email, sessionId, message: 'Signed in', method: 'sessionId' })
         }
 
-        // Fallback: if signInResult contains a token-like field, return it
-        if (signInResult?.sessionToken || signInResult?.token) {
-            const token = signInResult.sessionToken ?? signInResult.token
-            return res.status(200).json({ userId, email: userEmail, token, message: 'Signed in', method: 'token' })
-        }
-
-        // If we reach here, authentication succeeded but we couldn't extract tokens — return minimal success
-        return res.status(200).json({ userId, email: userEmail, message: 'Signed in (no token returned by Clerk SDK)' })
+        // Fallback: authentication succeeded but no token/session id found
+        return res.status(200).json({ userId: clerkUser.id, email, message: 'Signed in' })
 
     } catch (error: any) {
         console.error('loginUser unexpected error:', error)
-        return res.status(500).json({ message: error?.message ?? 'Unexpected error', details: isDev() ? String(error) : undefined })
+        return res.status(500).json({ message: error?.message ?? 'Unexpected error' })
     }
 }
 
