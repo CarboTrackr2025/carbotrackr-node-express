@@ -67,8 +67,11 @@ export const getFoodByQuery = async (req: Request, res: Response) => {
         const servings = normalizeToArray(f?.servings?.serving).map((s: any) => ({
             serving_id: s?.serving_id != null ? String(s.serving_id) : null,
             serving_description: s?.serving_description ?? null,
+            metric_serving_amount: toNumber(s?.metric_serving_amount),
+            metric_serving_unit: s?.metric_serving_unit ?? null,
             calories: toNumber(s?.calories),
         }))
+
 
         // ✅ brand included in food_name
         const displayName = [f?.brand_name, f?.food_name].filter(Boolean).join(" ")
