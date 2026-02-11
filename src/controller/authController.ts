@@ -144,11 +144,6 @@ export async function loginUser(req: Request, res: Response) {
         const token = json?.jwt ?? json?.token ?? json?.sessionToken ?? undefined
         const sessionId = json?.id ?? json?.session_id ?? undefined
 
-        // NOTE: removed automatic local DB insertion on login. Creating or syncing
-        // local `accounts` rows should happen at registration time or via an explicit
-        // sync/upsert operation. This prevents duplicate-key errors and avoids
-        // modifying the DB as a side-effect of authentication.
-
         if (token) {
             return res.status(200).json({ userId: clerkUser.id, email, token, message: 'Signed in', method: 'token' })
         }
@@ -250,5 +245,211 @@ export async function refreshToken(req: Request, res: Response) {
         }
     } catch (err: any) {
         return res.status(500).json({ message: err?.message ?? 'Unexpected error' })
+    }
+}
+
+// POST /auth/logout - revoke a Clerk session (server-side)
+export async function logout(req: Request, res: Response) {
+    try {
+        // Accept sessionId in body or extract from token (same logic as refreshToken)
+        let sessionId: string | undefined = req.body?.sessionId
+
+        if (!sessionId) {
+            let tokenCandidate: string | undefined
+            const bodyToken = req.body?.token
+            if (typeof bodyToken === 'string' && bodyToken.trim()) tokenCandidate = bodyToken.trim()
+
+            if (!tokenCandidate) {
+                const authHeader = (req.headers.authorization ?? req.headers.Authorization ?? '') as string
+                const m = authHeader.match(/^\s*Bearer\s+<?(.+?)>?\s*$/i)
+                if (m) tokenCandidate = m[1]
+            }
+
+            if (tokenCandidate) {
+                tokenCandidate = tokenCandidate.replace(/^\s*["'`]?<?/, '').replace(/>?["'`]?\s*$/, '')
+                try {
+                    const parts = tokenCandidate.split('.')
+                    if (parts.length >= 2) {
+                        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+                        const payloadJson = Buffer.from(b64, 'base64').toString('utf8')
+                        const payload = JSON.parse(payloadJson)
+                        sessionId = payload?.sid ?? payload?.session_id ?? sessionId
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+        }
+
+        if (!sessionId) {
+            return res.status(400).json({ message: 'sessionId must be provided in body or extractable from Authorization token' })
+        }
+
+        const clerkApiKey = env.CLERK_API_KEY ?? env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET
+        if (!clerkApiKey) return res.status(500).json({ message: 'Server missing Clerk API key' })
+
+        // Quick sanity check: ensure we're not accidentally using a publishable key (starts with 'pk_')
+        if (typeof clerkApiKey === 'string' && /^pk_/.test(clerkApiKey)) {
+            return res.status(500).json({ message: 'Server is configured with a publishable Clerk API key. Use the Clerk secret key (server key) to revoke sessions.' })
+        }
+
+        // Try SDK-based revoke if available (safer, uses clerk client)
+        try {
+            const maybeSessions = (clerkClient as any).sessions
+            if (maybeSessions && typeof maybeSessions.revoke === 'function') {
+                try {
+                    await maybeSessions.revoke(sessionId)
+                    // clear cookies
+                    try { res.clearCookie('__session'); res.clearCookie('session') } catch(e){}
+                    return res.status(200).json({ message: 'Signed out', sessionId })
+                } catch (sdkErr) {
+                    // fall through to REST attempts below
+                    if (isDev()) console.error('SDK session revoke error (falling back to REST):', sdkErr)
+                }
+            }
+        } catch (e) {
+            // ignore
+        }
+
+         const url = `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}`
+         try {
+             // Primary attempt: DELETE the session
+             let resp = await fetch(url, { method: 'DELETE', headers: { 'Authorization': `Bearer ${clerkApiKey}` } })
+             let text = await resp.text()
+
+             // If DELETE is not allowed (405) or not OK, try common alternative revoke endpoints
+             if (!resp.ok) {
+                 const altPaths = ["/revoke", "/expire"]
+                 for (const p of altPaths) {
+                     try {
+                         const altUrl = `${url}${p}`
+                         const altResp = await fetch(altUrl, { method: 'POST', headers: { 'Authorization': `Bearer ${clerkApiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+                         const altText = await altResp.text()
+                         if (altResp.ok) {
+                             resp = altResp
+                             text = altText
+                             break
+                         }
+                     } catch (innerErr) {
+                         // ignore and try next alt path
+                     }
+                 }
+             }
+
+             if (!resp.ok) {
+                // forward upstream error (include body and headers to help debug)
+                const status = resp.status >= 400 && resp.status < 600 ? resp.status : 502
+                const hdrs: Record<string,string> = {}
+                try { resp.headers.forEach((v, k) => { hdrs[k] = v }) } catch (e) { /* ignore */ }
+                if (isDev()) console.error('Clerk revoke failed', { status: resp.status, headers: hdrs, body: text })
+                return res.status(status).json({ message: 'failed to revoke session', upstreamStatus: resp.status, upstreamBody: text, upstreamHeaders: hdrs })
+             }
+
+            // Clear common cookie names (for browser flows). No-op for mobile.
+            try {
+                res.clearCookie('__session')
+                res.clearCookie('session')
+            } catch (e) {
+                // ignore if clearCookie isn't configured the same way
+            }
+
+            return res.status(200).json({ message: 'Signed out', sessionId })
+        } catch (err: any) {
+            return res.status(502).json({ message: 'error contacting auth provider', details: String(err) })
+        }
+    } catch (err: any) {
+        return res.status(500).json({ message: err?.message ?? 'Unexpected error' })
+    }
+}
+
+// DEV DEBUG: GET /auth/users/:userId/sessions - list Clerk sessions for a user (dev only)
+export async function getUserSessions(req: Request, res: Response) {
+    if (!isDev()) return res.status(403).json({ message: 'Endpoint allowed in development only' })
+
+    const userIdRaw = req.params.userId
+    const userId = Array.isArray(userIdRaw) ? userIdRaw[0] : userIdRaw
+    if (!userId) return res.status(400).json({ message: 'userId path param required' })
+
+    const clerkApiKey = env.CLERK_API_KEY ?? env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET_KEY ?? process.env.CLERK_API_KEY
+    if (!clerkApiKey) return res.status(500).json({ message: 'Server missing Clerk API key' })
+    if (typeof clerkApiKey === 'string' && /^pk_/.test(clerkApiKey)) return res.status(500).json({ message: 'Server is configured with a publishable Clerk API key. Use the Clerk secret key.' })
+
+    const url = `https://api.clerk.com/v1/users/${encodeURIComponent(userId)}/sessions`
+    try {
+        let resp = await fetch(url, { method: 'GET', headers: { 'Authorization': `Bearer ${clerkApiKey}`, 'Content-Type': 'application/json' } })
+        let text = await resp.text()
+
+        // If Clerk returns 404, try alternative query-based endpoint
+        if (!resp.ok && resp.status === 404) {
+            const altUrl = `https://api.clerk.com/v1/sessions?user_id=${encodeURIComponent(userId)}`
+            try {
+                const altResp = await fetch(altUrl, { method: 'GET', headers: { 'Authorization': `Bearer ${clerkApiKey}`, 'Content-Type': 'application/json' } })
+                const altText = await altResp.text()
+                if (altResp.ok) {
+                    let altJson: any
+                    try { altJson = JSON.parse(altText) } catch (e) { altJson = altText }
+                    const sessions: any[] = Array.isArray(altJson) ? altJson : (altJson?.data ?? [])
+                    const out = sessions.map(s => ({ id: s.id ?? s.session_id ?? s.sid, status: s.status, last_active_at: s.last_active_at, created_at: s.created_at }))
+                    return res.status(200).json({ sessions: out, source: 'query' })
+                }
+                // fall through to original error handling below, but include alt response details
+                // merge alt headers for debugging
+                const altHdrs: Record<string,string> = {}
+                try { altResp.headers.forEach((v,k) => { altHdrs[k] = v }) } catch(e) {}
+                if (isDev()) console.error('Clerk alt sessions fetch failed', { status: altResp.status, headers: altHdrs, body: altText })
+                // include alt info in main response
+                text += `\n---\naltStatus:${altResp.status}\naltBody:${altText}`
+            } catch (altErr) {
+                // ignore alt fetch error, continue to return original 404
+                if (isDev()) console.error('Clerk alt sessions request error:', altErr)
+            }
+        }
+
+        if (!resp.ok) {
+            const hdrs: Record<string,string> = {}
+            try { resp.headers.forEach((v,k) => { hdrs[k] = v }) } catch(e) {}
+            // include clerk trace id if present in headers
+            const clerkTrace = hdrs['x-clerk-trace-id'] ?? hdrs['x-clerk-trace-id'.toLowerCase()]
+            const payload: any = { message: 'failed to fetch user sessions', upstreamStatus: resp.status, upstreamBody: text, upstreamHeaders: hdrs }
+            if (clerkTrace) payload.clerkTraceId = clerkTrace
+            return res.status(resp.status >=400 && resp.status < 600 ? resp.status : 502).json(payload)
+        }
+
+        let json: any
+        try { json = JSON.parse(text) } catch (e) { json = text }
+        const sessions: any[] = Array.isArray(json) ? json : (json?.data ?? [])
+        const out = sessions.map(s => ({ id: s.id ?? s.session_id ?? s.sid, status: s.status, last_active_at: s.last_active_at, created_at: s.created_at }))
+        return res.status(200).json({ sessions: out })
+    } catch (err: any) {
+        return res.status(502).json({ message: 'error contacting auth provider', details: String(err) })
+    }
+}
+
+// DEV DEBUG: GET /auth/sessions/:sessionId - get a single Clerk session object (dev only)
+export async function getSessionById(req: Request, res: Response) {
+    if (!isDev()) return res.status(403).json({ message: 'Endpoint allowed in development only' })
+
+    const sessionIdRaw = req.params.sessionId
+    const sessionId = Array.isArray(sessionIdRaw) ? sessionIdRaw[0] : sessionIdRaw
+    if (!sessionId) return res.status(400).json({ message: 'sessionId path param required' })
+
+    const clerkApiKey = env.CLERK_API_KEY ?? env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET_KEY ?? process.env.CLERK_API_KEY
+    if (!clerkApiKey) return res.status(500).json({ message: 'Server missing Clerk API key' })
+    if (typeof clerkApiKey === 'string' && /^pk_/.test(clerkApiKey)) return res.status(500).json({ message: 'Server is configured with a publishable Clerk API key. Use the Clerk secret key.' })
+
+    const url = `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}`
+    try {
+        const resp = await fetch(url, { method: 'GET', headers: { 'Authorization': `Bearer ${clerkApiKey}`, 'Content-Type': 'application/json' } })
+        const text = await resp.text()
+        if (!resp.ok) {
+            const hdrs: Record<string,string> = {}
+            try { resp.headers.forEach((v,k) => { hdrs[k] = v }) } catch(e) {}
+            return res.status(resp.status >=400 && resp.status < 600 ? resp.status : 502).json({ message: 'failed to fetch session', upstreamStatus: resp.status, upstreamBody: text, upstreamHeaders: hdrs })
+        }
+        let json: any
+        try { json = JSON.parse(text) } catch (e) { json = text }
+        return res.status(200).json({ session: json })
+    } catch (err: any) {
+        return res.status(502).json({ message: 'error contacting auth provider', details: String(err) })
     }
 }

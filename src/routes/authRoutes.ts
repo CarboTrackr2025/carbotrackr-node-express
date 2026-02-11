@@ -1,5 +1,5 @@
 import { Router } from "express"
-import { createAccount, listUserIds, loginUser, refreshToken } from "../controller/authController.ts"
+import { createAccount, listUserIds, loginUser, refreshToken, logout, getUserSessions, getSessionById } from "../controller/authController.ts"
 
 const router = Router()
 
@@ -12,8 +12,14 @@ router.post("/login", loginUser)
 // Refresh session token using sessionId or expired token (decoded to get sid)
 router.post("/refresh", refreshToken)
 
+// Logout (revoke session)
+router.post("/logout", logout)
+
 // List Clerk user IDs (test; no auth)
 router.get("/users", listUserIds)
 
+// DEV debug routes (handlers themselves will check isDev())
+router.get('/users/:userId/sessions', getUserSessions)
+router.get('/sessions/:sessionId', getSessionById)
 
 export default router
