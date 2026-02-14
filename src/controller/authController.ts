@@ -4,6 +4,7 @@ import { db } from "../db/connection.ts"
 import { accounts, profiles } from "../db/schema.ts"
 import { isDev } from "../../env.ts"
 import env from "../../env.ts"
+import { eq } from "drizzle-orm"
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MIN_PASSWORD_LENGTH = 8
@@ -24,7 +25,6 @@ export async function createAccount(req: Request, res: Response) {
         if (password !== confirmPassword) {
             return res.status(400).json({ message: "passwords do not match" })
         }
-
         // Create user in Clerk
         let clerkUser
         try {
@@ -60,15 +60,65 @@ export async function createAccount(req: Request, res: Response) {
                 }
             }
 
-            // Create minimal profile using clerkUser.id as profiles.id and account_id
             try {
-                // Cast to any because the profiles table has many NOT NULL columns in the type definitions; we're intentionally inserting a minimal row and letting the DB defaults handle missing fields.
-                await db.insert(profiles).values({
-                    id: clerkUser.id,
-                    account_id: clerkUser.id,
-                } as any)
-            } catch (profileInsertErr: any) {
-                console.error('Profile insert error (non-fatal):', profileInsertErr)
+                const profileBody = req.body?.profile ?? {}
+                const sexRaw = profileBody?.sex ?? req.body?.sex
+                const dobRaw = profileBody?.date_of_birth ?? req.body?.date_of_birth
+                const heightRaw = profileBody?.height_cm ?? req.body?.height_cm
+                const weightRaw = profileBody?.weight_kg ?? req.body?.weight_kg
+                const diagnosedRaw = profileBody?.diagnosed_with ?? req.body?.diagnosed_with
+
+                function normalizeSex(s: any) {
+                    if (!s) return undefined
+                    const u = String(s).trim().toUpperCase()
+                    if (u === 'M' || u === 'MALE') return 'MALE'
+                    if (u === 'F' || u === 'FEMALE') return 'FEMALE'
+                    return undefined
+                }
+
+                function normalizeDiagnosed(s: any) {
+                    if (!s) return undefined
+                    const u = String(s).trim().toUpperCase().replace(/[^A-Z0-9]/g, '_')
+                    if (u.includes('PRE') && u.includes('DIABET')) return 'PRE_DIABETES'
+                    if (u.includes('TYPE') && u.includes('2')) return 'TYPE_2_DIABETES'
+                    if (u.includes('NOT') || u.includes('NA') || u.includes('NOT_APPLICABLE')) return 'NOT_APPLICABLE'
+                    if (['TYPE_2_DIABETES','PRE_DIABETES','NOT_APPLICABLE'].includes(u)) return u
+                    return undefined
+                }
+
+                const sex = normalizeSex(sexRaw)
+                let dateOfBirth: Date | undefined = undefined
+                if (dobRaw) {
+                    const parsed = new Date(dobRaw)
+                    if (!isNaN(parsed.getTime())) dateOfBirth = parsed
+                }
+                const height = typeof heightRaw === 'number' ? heightRaw : (heightRaw ? Number(heightRaw) : undefined)
+                const weight = typeof weightRaw === 'number' ? weightRaw : (weightRaw ? Number(weightRaw) : undefined)
+                const diagnosed_with = normalizeDiagnosed(diagnosedRaw)
+
+                const hasFullProfile = sex && dateOfBirth && Number.isFinite(height) && Number.isFinite(weight) && diagnosed_with
+
+                if (hasFullProfile) {
+                    const profilePayload: any = {
+                        id: clerkUser.id,
+                        account_id: clerkUser.id,
+                        sex,
+                        date_of_birth: dateOfBirth,
+                        height_cm: height,
+                        weight_kg: weight,
+                        diagnosed_with,
+                    }
+
+                    try {
+                        await db.insert(profiles).values(profilePayload)
+                    } catch (profileInsertErr: any) {
+                        console.error('Profile insert error (non-fatal):', profileInsertErr)
+                    }
+                } else {
+                    // Intentionally do nothing: client didn't provide a complete profile. Use the separate profile endpoint to create it.
+                }
+            } catch (profileErr: any) {
+                console.error('Error while attempting conditional profile creation:', profileErr)
             }
 
         } catch (dbErr: any) {
@@ -451,5 +501,149 @@ export async function getSessionById(req: Request, res: Response) {
         return res.status(200).json({ session: json })
     } catch (err: any) {
         return res.status(502).json({ message: 'error contacting auth provider', details: String(err) })
+    }
+}
+
+// New: Update profile by account id - PUT /auth/profile/:accountId (or body.accountId)
+export async function updateProfile(req: Request, res: Response) {
+    try {
+        const accountIdRaw = req.params?.accountId ?? req.body?.accountId ?? req.body?.userId
+        const accountId = Array.isArray(accountIdRaw) ? accountIdRaw[0] : accountIdRaw
+        if (!accountId) return res.status(400).json({ message: 'accountId (path param or body.accountId) is required' })
+
+        const profileBody = req.body?.profile ?? req.body
+        const sexRaw = profileBody?.sex
+        const dobRaw = profileBody?.date_of_birth
+        const heightRaw = profileBody?.height_cm
+        const weightRaw = profileBody?.weight_kg
+        const diagnosedRaw = profileBody?.diagnosed_with
+
+        function normalizeSex(s: any) {
+            if (!s) return undefined
+            const u = String(s).trim().toUpperCase()
+            if (u === 'M' || u === 'MALE') return 'MALE'
+            if (u === 'F' || u === 'FEMALE') return 'FEMALE'
+            return undefined
+        }
+
+        function normalizeDiagnosed(s: any) {
+            if (!s) return undefined
+            const u = String(s).trim().toUpperCase().replace(/[^A-Z0-9]/g, '_')
+            if (u.includes('PRE') && u.includes('DIABET')) return 'PRE_DIABETES'
+            if (u.includes('TYPE') && u.includes('2')) return 'TYPE_2_DIABETES'
+            if (u.includes('NOT') || u.includes('NA') || u.includes('NOT_APPLICABLE')) return 'NOT_APPLICABLE'
+            if (['TYPE_2_DIABETES','PRE_DIABETES','NOT_APPLICABLE'].includes(u)) return u
+            return undefined
+        }
+
+        const sex = normalizeSex(sexRaw)
+        let dateOfBirth: Date | undefined = undefined
+        if (dobRaw) {
+            const parsed = new Date(dobRaw)
+            if (!isNaN(parsed.getTime())) dateOfBirth = parsed
+            else return res.status(400).json({ message: 'date_of_birth is not a valid date' })
+        }
+        const height = typeof heightRaw === 'number' ? heightRaw : (heightRaw ? Number(heightRaw) : undefined)
+        const weight = typeof weightRaw === 'number' ? weightRaw : (weightRaw ? Number(weightRaw) : undefined)
+        const diagnosed_with = normalizeDiagnosed(diagnosedRaw)
+
+        const updatePayload: any = {}
+        if (sex) updatePayload.sex = sex
+        if (dateOfBirth) updatePayload.date_of_birth = dateOfBirth
+        if (Number.isFinite(height)) updatePayload.height_cm = height
+        if (Number.isFinite(weight)) updatePayload.weight_kg = weight
+        if (diagnosed_with) updatePayload.diagnosed_with = diagnosed_with
+        if (Object.keys(updatePayload).length === 0) return res.status(400).json({ message: 'No valid profile fields provided to update' })
+
+        updatePayload.updated_at = new Date()
+
+        try {
+            await db.update(profiles).set(updatePayload).where(eq(profiles.account_id, accountId))
+            return res.status(200).json({ message: 'Profile updated', accountId })
+        } catch (err: any) {
+            console.error('Profile update error:', err)
+            return res.status(500).json({ message: err?.message ?? 'Failed to update profile' })
+        }
+
+    } catch (err: any) {
+        return res.status(500).json({ message: err?.message ?? 'Unexpected error' })
+    }
+}
+
+// New: Create profile by account id - POST /auth/profile (body.accountId or profile.accountId)
+export async function createProfile(req: Request, res: Response) {
+    try {
+        const accountIdRaw = req.body?.accountId ?? req.body?.profile?.accountId ?? req.body?.userId
+        const accountId = Array.isArray(accountIdRaw) ? accountIdRaw[0] : accountIdRaw
+        if (!accountId) return res.status(400).json({ message: 'accountId (body.accountId or profile.accountId) is required' })
+
+        const profileBody = req.body?.profile ?? req.body
+        const sexRaw = profileBody?.sex
+        const dobRaw = profileBody?.date_of_birth
+        const heightRaw = profileBody?.height_cm
+        const weightRaw = profileBody?.weight_kg
+        const diagnosedRaw = profileBody?.diagnosed_with
+
+        function normalizeSex(s: any) {
+            if (!s) return undefined
+            const u = String(s).trim().toUpperCase()
+            if (u === 'M' || u === 'MALE') return 'MALE'
+            if (u === 'F' || u === 'FEMALE') return 'FEMALE'
+            return undefined
+        }
+
+        function normalizeDiagnosed(s: any) {
+            if (!s) return undefined
+            const u = String(s).trim().toUpperCase().replace(/[^A-Z0-9]/g, '_')
+            if (u.includes('PRE') && u.includes('DIABET')) return 'PRE_DIABETES'
+            if (u.includes('TYPE') && u.includes('2')) return 'TYPE_2_DIABETES'
+            if (u.includes('NOT') || u.includes('NA') || u.includes('NOT_APPLICABLE')) return 'NOT_APPLICABLE'
+            if (['TYPE_2_DIABETES','PRE_DIABETES','NOT_APPLICABLE'].includes(u)) return u
+            return undefined
+        }
+
+        const sex = normalizeSex(sexRaw)
+        let dateOfBirth: Date | undefined = undefined
+        if (dobRaw) {
+            const parsed = new Date(dobRaw)
+            if (!isNaN(parsed.getTime())) dateOfBirth = parsed
+            else return res.status(400).json({ message: 'date_of_birth is not a valid date' })
+        } else {
+            return res.status(400).json({ message: 'date_of_birth is required' })
+        }
+
+        const height = typeof heightRaw === 'number' ? heightRaw : (heightRaw ? Number(heightRaw) : undefined)
+        const weight = typeof weightRaw === 'number' ? weightRaw : (weightRaw ? Number(weightRaw) : undefined)
+        const diagnosed_with = normalizeDiagnosed(diagnosedRaw)
+
+        if (!sex) return res.status(400).json({ message: 'sex is required and must be MALE or FEMALE' })
+        if (!Number.isFinite(height) || height <= 0) return res.status(400).json({ message: 'height_cm must be a positive number' })
+        if (!Number.isFinite(weight) || weight <= 0) return res.status(400).json({ message: 'weight_kg must be a positive number' })
+        if (!diagnosed_with) return res.status(400).json({ message: 'diagnosed_with is required and must be a valid value' })
+
+        const profilePayload: any = {
+            id: accountId,
+            account_id: accountId,
+            sex,
+            date_of_birth: dateOfBirth,
+            height_cm: height,
+            weight_kg: weight,
+            diagnosed_with,
+        }
+
+        try {
+            await db.insert(profiles).values(profilePayload)
+            return res.status(201).json({ message: 'Profile created', accountId })
+        } catch (err: any) {
+            const pgCode = err?.code || err?.pgCode
+            if (pgCode === '23505') {
+                return res.status(409).json({ message: 'Profile already exists for this account. Use PUT to update.' })
+            }
+            console.error('Profile create error:', err)
+            return res.status(500).json({ message: err?.message ?? 'Failed to create profile' })
+        }
+
+    } catch (err: any) {
+        return res.status(500).json({ message: err?.message ?? 'Unexpected error' })
     }
 }
