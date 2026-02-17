@@ -36,6 +36,10 @@ const envSchema = z.object({
     FAT_SECRET_CONSUMER_KEY: z.string().min(32),
     FAT_SECRET_CONSUMER_SECRET: z.string().min(32),
 
+    // Clerk server keys (optional)
+    CLERK_API_KEY: z.string().optional(),
+    CLERK_SECRET_KEY: z.string().optional(),
+
     // LOG_LEVEL: z
     //     .enum(["error", "warn", "info", "debug"])
     //     .default(isProduction ? "info" : "debug")
