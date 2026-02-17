@@ -1,3 +1,4 @@
+import env from "../env.ts"
 import express from "express"
 import type { Request, Response } from "express"
 import authRoutes from "./routes/authRoutes.ts"
@@ -5,18 +6,43 @@ import contactRoutes from "./routes/contactRoutes.ts"
 import dashboardRoutes from "./routes/dashboardRoutes.ts"
 import faqsRoutes from "./routes/faqsRoutes.ts"
 import foodLogsRoutes from "./routes/foodLogsRoutes.ts"
-import healthRoutes from "./routes/healthRoutes.ts";
+import healthRoutes from "./routes/healthRoutes.ts"
 import reportRoutes from "./routes/reportRoutes.ts"
 import scannerRoutes from "./routes/scannerRoutes.ts"
-import settingsRoutes from "./routes/settingsRoutes.ts";
-import { clerkClient, clerkMiddleware } from "@clerk/express";
+import settingsRoutes from "./routes/settingsRoutes.ts"
+import { clerkClient, clerkMiddleware } from "@clerk/express"
 
 
 const app = express()
 
 
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+
+// Lightweight CORS middleware to support cookies/credentials in development and controlled environments.
+// - echoes back the request Origin as Access-Control-Allow-Origin (safer than '*') so the browser will accept credentials
+// - sets Access-Control-Allow-Credentials so cookies can be sent/accepted by browsers
+// - handles preflight OPTIONS requests
+app.use((req: Request, res: Response, next) => {
+    const origin = req.headers.origin || ""
+    // In production you should replace this with a specific allowed origin from configuration
+    if (origin) {
+        res.header('Access-Control-Allow-Origin', origin)
+    } else {
+        res.header('Access-Control-Allow-Origin', '*')
+    }
+    res.header('Access-Control-Allow-Credentials', 'true')
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
+
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200)
+    }
+
+    next()
+})
+
 app.use(clerkMiddleware())
 
 
@@ -34,6 +60,7 @@ app.get("/", async (req: Request, res: Response) => {
         })
     }
 })
+
 
 
 app.use("/auth", authRoutes)
