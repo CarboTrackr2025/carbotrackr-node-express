@@ -1,0 +1,5 @@
+# Fetch all remote branches/tags
+git fetch --all --prune
+
+# Switch to a specific branch
+git checkout <branch-name>
