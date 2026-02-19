@@ -1,5 +1,10 @@
 import { Router } from "express"
-import {getFoodByQuery, getFoodDetailsByServingId, postFoodLog} from "../controller/foodLogsController.ts";
+import {
+    getFoodByQuery,
+    getFoodDetailsByServingId,
+    postFoodLog,
+    postLabelMacrosOnly
+} from "../controller/foodLogsController.ts";
 
 
 const router = Router()
@@ -10,5 +15,7 @@ const router = Router()
 router.get("/search", getFoodByQuery);
 router.get("/food/:food_id/serving/:serving_id", getFoodDetailsByServingId);
 router.post("/create", postFoodLog)
+router.post("/scan/nutritional_label", postLabelMacrosOnly);
+
 
 export default router
