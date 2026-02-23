@@ -173,6 +173,36 @@ export const carbohydrateData = createTable("carbohydrate_data",
 )
 
 
+// Smartwatch Health Data Tables
+// Heart rate measurements from smartwatch (Wear OS)
+export const heartRateMeasurements = createTable("heart_rate_measurements",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        profile_id: varchar("profile_id", { length: 255 }).references(() => (profiles as any).id, {onDelete: "cascade"}).notNull(),
+        heart_rate_bpm: integer("heart_rate_bpm").notNull(), // Beats per minute
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (t) => [
+        check("heart_rate_bpm_gt_0", sql`${t.heart_rate_bpm} > 0`),
+        check("heart_rate_bpm_lt_300", sql`${t.heart_rate_bpm} < 300`), // Reasonable upper limit
+    ]
+)
+
+
+// Steps data from smartwatch (Wear OS)
+export const stepsMeasurements = createTable("steps_measurements",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        profile_id: varchar("profile_id", { length: 255 }).references(() => (profiles as any).id, {onDelete: "cascade"}).notNull(),
+        steps_count: integer("steps_count").notNull(), // Number of steps
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (t) => [
+        check("steps_count_gte_0", sql`${t.steps_count} >= 0`),
+    ]
+)
+
+
 export const profilesRelations = relations(profiles, ({ one, many }) => ({
     account: one(accounts, {
         fields: [profiles.account_id],
@@ -189,6 +219,8 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
     foodLogs: many(foodLogs),
     calorieData: many(calorieData),
     carbohydrateData: many(carbohydrateData),
+    heartRateMeasurements: many(heartRateMeasurements),
+    stepsMeasurements: many(stepsMeasurements),
 }))
 
 
@@ -240,6 +272,22 @@ export const carbohydrateDataRelations = relations(carbohydrateData, ({ one }) =
 }))
 
 
+export const heartRateMeasurementsRelations = relations(heartRateMeasurements, ({ one }) => ({
+    profile: one(profiles as any, {
+        fields: [heartRateMeasurements.profile_id],
+        references: [(profiles as any).id]
+    })
+}))
+
+
+export const stepsMeasurementsRelations = relations(stepsMeasurements, ({ one }) => ({
+    profile: one(profiles as any, {
+        fields: [stepsMeasurements.profile_id],
+        references: [(profiles as any).id]
+    })
+}))
+
+
 export type Account = typeof accounts.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
 export type HealthMetric = typeof healthMetrics.$inferSelect;
@@ -250,6 +298,8 @@ export type FAQ = typeof faqs.$inferSelect;
 export type Inquiry = typeof inquiries.$inferSelect;
 export type CalorieData = typeof calorieData.$inferSelect;
 export type CarbohydrateData = typeof carbohydrateData.$inferSelect;
+export type HeartRateMeasurement = typeof heartRateMeasurements.$inferSelect;
+export type StepsMeasurement = typeof stepsMeasurements.$inferSelect;
 
 
 export const insertProfileSchema = createInsertSchema(profiles)
@@ -278,3 +328,10 @@ export const selectCalorieDataSchema = createSelectSchema(calorieData)
 
 export const insertCarbohydrateDataSchema = createInsertSchema(carbohydrateData)
 export const selectCarbohydrateDataSchema = createSelectSchema(carbohydrateData)
+
+export const insertHeartRateMeasurementSchema = createInsertSchema(heartRateMeasurements)
+export const selectHeartRateMeasurementSchema = createSelectSchema(heartRateMeasurements)
+
+export const insertStepsMeasurementSchema = createInsertSchema(stepsMeasurements)
+export const selectStepsMeasurementSchema = createSelectSchema(stepsMeasurements)
+

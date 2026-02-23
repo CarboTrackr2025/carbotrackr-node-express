@@ -1,7 +1,14 @@
 import { Router } from "express"
 import { z } from "zod"
 import { validateBody, validateParams, validateQuery } from "../middleware/validation.ts"
-import { createBloodPressure, viewBloodPressureReport } from "../controller/healthController.ts";
+import {
+    createBloodPressure,
+    viewBloodPressureReport,
+    createHeartRate,
+    viewHeartRateReport,
+    createSteps,
+    viewStepsReport
+} from "../controller/healthController.ts";
 
 
 const healthRouter = Router()
@@ -29,8 +36,40 @@ const reportBloodPressureQuerySchema = z.object({
 })
 
 
+// Heart Rate Validation Schemas (Wear OS Smartwatch)
+const createHeartRateSchema = z.object({
+    profile_id: z.string().uuid({ message: "Profile ID must be a valid UUID" }),
+    heart_rate_bpm: z.number().int().positive().min(30).max(300, { message: "Heart rate must be between 30 and 300 bpm" })
+})
+
+
+// Steps Validation Schemas (Wear OS Smartwatch)
+const createStepsSchema = z.object({
+    profile_id: z.string().uuid({ message: "Profile ID must be a valid UUID" }),
+    steps_count: z.number().int().nonnegative({ message: "Steps count must be a non-negative integer" })
+})
+
+
+// Query schema for date range reports (reused for heart rate and steps)
+const reportQuerySchema = z.object({
+    "start_date": z.string().refine((dateStr) => !isNaN(Date.parse(dateStr)), { message: "Invalid start date format" }),
+    "end_date": z.string().refine((dateStr) => !isNaN(Date.parse(dateStr)), { message: "Invalid end date format" })
+})
+
+
+// Blood Pressure Routes
 healthRouter.post("/blood-pressure/create", validateBody(createBloodPressureSchema), createBloodPressure)
 healthRouter.get("/:profile_id/blood-pressure/report", validateQuery(reportBloodPressureQuerySchema), viewBloodPressureReport)
+
+
+// Heart Rate Routes (Wear OS Smartwatch)
+healthRouter.post("/heart-rate/create", validateBody(createHeartRateSchema), createHeartRate)
+healthRouter.get("/:profile_id/heart-rate/report", validateQuery(reportQuerySchema), viewHeartRateReport)
+
+
+// Steps Routes (Wear OS Smartwatch)
+healthRouter.post("/steps/create", validateBody(createStepsSchema), createSteps)
+healthRouter.get("/:profile_id/steps/report", validateQuery(reportQuerySchema), viewStepsReport)
 
 
 export default healthRouter
