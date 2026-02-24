@@ -24,7 +24,7 @@ const decimal_precision_5_scale_2 = z
 
 
 const createBloodPressureSchema = z.object({
-    profile_id: z.uuid(),
+    profile_id: z.string().min(1, { message: "Profile ID is required" }).max(255, { message: "Profile ID is too long" }),
     systolic_mmHg: z.int().positive(),
     diastolic_mmHg: z.int().positive()
 })
@@ -38,14 +38,14 @@ const reportBloodPressureQuerySchema = z.object({
 
 // Heart Rate Validation Schemas (Wear OS Smartwatch)
 const createHeartRateSchema = z.object({
-    profile_id: z.string().uuid({ message: "Profile ID must be a valid UUID" }),
+    profile_id: z.string().min(1, { message: "Profile ID is required" }).max(255, { message: "Profile ID is too long" }),
     heart_rate_bpm: z.number().int().positive().min(30).max(300, { message: "Heart rate must be between 30 and 300 bpm" })
 })
 
 
 // Steps Validation Schemas (Wear OS Smartwatch)
 const createStepsSchema = z.object({
-    profile_id: z.string().uuid({ message: "Profile ID must be a valid UUID" }),
+    profile_id: z.string().min(1, { message: "Profile ID is required" }).max(255, { message: "Profile ID is too long" }),
     steps_count: z.number().int().nonnegative({ message: "Steps count must be a non-negative integer" })
 })
 
