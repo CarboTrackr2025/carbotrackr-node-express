@@ -83,7 +83,6 @@ export const putAccountSettings = async (req: Request, res: Response) => {
             })
             .where(eq(profiles.account_id, account_id))
             .returning({
-                id: profiles.id,
                 account_id: profiles.account_id,
                 gender: profiles.sex,
                 date_of_birth: profiles.date_of_birth,
