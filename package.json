@@ -33,6 +33,7 @@
   "dependencies": {
     "@clerk/express": "^1.7.67",
     "@epic-web/remember": "^1.1.0",
+    "@google/genai": "^1.41.0",
     "axios": "^1.13.5",
     "custom-env": "^2.0.6",
     "dotenv": "^17.2.3",
@@ -41,6 +42,7 @@
     "express": "^5.2.1",
     "helmet": "^8.1.0",
     "morgan": "^1.10.1",
+    "multer": "^2.0.2",
     "pg": "^8.18.0",
     "ts-node": "^10.9.2",
     "zod": "^4.3.6"
