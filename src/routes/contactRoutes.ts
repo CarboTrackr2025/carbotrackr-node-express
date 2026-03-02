@@ -1,11 +1,9 @@
-import { Router } from "express"
+import { Router } from "express";
+import { submitInquiry } from "../controller/contactController.ts";
 
-const router = Router()
+const router = Router();
 
-// Define here your routes.
+// POST /contacts - Submit a new contact inquiry
+router.post("/", submitInquiry);
 
-
-
-
-
-export default router
+export default router;
