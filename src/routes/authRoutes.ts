@@ -1,13 +1,10 @@
 import { Router } from "express"
-import { createAccount, listUserIds, loginUser, refreshToken, logout, getUserSessions, getSessionById, updateProfile, createProfile } from "../controller/authController.ts"
+import { createAccount, listUserIds, loginUser, refreshToken, logout, getUserSessions, getSessionById, updateProfile } from "../controller/authController.ts"
 
 const router = Router()
 
-// Create an account (creates Clerk user and DB record)
-router.post("/register", createAccount)
-
-// Create profile separately
-router.post('/profile', createProfile)
+// Create an account (persist Clerk user in local DB)
+router.post("/account", createAccount)
 
 // Login (server-side credential exchange)
 router.post("/login", loginUser)
