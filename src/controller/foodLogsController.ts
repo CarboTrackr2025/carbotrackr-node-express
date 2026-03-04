@@ -5,6 +5,7 @@ import crypto from "crypto"
 import { db } from "../db/connection.ts"
 import {foodLogs} from "../db/schema.ts"
 import { buildBaseString, buildNormalizedParams, normalizeToArray, signHmacSha1, toNumber } from "../utils/foodLogs.utils.ts"
+import getProfileIdByAccountId from "../utils/auth.utils.ts";
 
 export type FatSecretServingDetails = {
     food_id: string;
@@ -197,13 +198,15 @@ export const postFoodLog = async (req: Request, res: Response) => {
         if (!food_id) return res.status(400).json({ error: "food_id route param is required" })
         if (!serving_id) return res.status(400).json({ error: "serving_id route param is required" })
 
-        const profile_id = String(req.body?.profile_id ?? "").trim()
+        const account_id = String(req.body?.account_id ?? "").trim()
         const meal_type = String(req.body?.meal_type ?? "").trim().toUpperCase()
         const number_of_servings_raw = req.body?.number_of_servings
         const number_of_servings =
             number_of_servings_raw == null ? 1 : Number(number_of_servings_raw)
 
-        if (!profile_id) return res.status(400).json({ error: "profile_id is required" })
+        if (!account_id) return res.status(400).json({ error: "account_id is required" })
+
+        const profile_id = await getProfileIdByAccountId(account_id)
 
         const allowedMeals = new Set(["BREAKFAST", "LUNCH", "DINNER", "SNACK"])
         if (!allowedMeals.has(meal_type)) {
