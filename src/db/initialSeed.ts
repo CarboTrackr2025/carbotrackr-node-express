@@ -14,6 +14,7 @@ import {
     inquiries
 } from "./schema.ts"
 import { pathToFileURL } from "node:url";
+import { randomUUID } from "node:crypto";
 
 const seed = () => async() => {
     console.log("🌱 Start database seed...")
@@ -40,6 +41,7 @@ const seed = () => async() => {
 
         console.log("Creating demo profile")
         const [demoProfile] = await db.insert(profiles).values({
+            id: randomUUID(),
             account_id: demoAccount.id,
             sex: "MALE",
             date_of_birth: new Date(2001, 4, 15),

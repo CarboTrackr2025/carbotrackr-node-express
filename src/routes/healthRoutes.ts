@@ -30,7 +30,7 @@ const decimal_precision_5_scale_2 = z
   });
 
 const createBloodPressureSchema = z.object({
-  profile_id: z.uuid(),
+  account_id: z.string(),
   systolic_mmHg: z.int().positive(),
   diastolic_mmHg: z.int().positive(),
 });
@@ -69,7 +69,7 @@ healthRouter.post(
   createBloodPressure,
 );
 healthRouter.get(
-  "/:profile_id/blood-pressure/report",
+  "/:account_id/blood-pressure/report",
   validateQuery(reportBloodPressureQuerySchema),
   viewBloodPressureReport,
 );
