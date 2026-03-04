@@ -41,7 +41,7 @@ export const createBloodPressure = async (req: Request, res: Response) => {
     res.status(500).json({
       status: "error",
       message:
-        "An error occurred while creating blood pressure measurement. Please check if the profile ID is valid.",
+        "An error occurred while creating blood pressure measurement. Please check if the account ID is valid.",
     });
   }
 };
@@ -110,21 +110,23 @@ export const viewBloodPressureReport = async (req: Request, res: Response) => {
     res.status(500).json({
       status: "error",
       message:
-        "An error occurred while retrieving blood pressure measurements. Please check if the profile ID is valid.",
+        "An error occurred while retrieving blood pressure measurements. Please check if the account ID is valid.",
     });
   }
 };
 
 export const createBloodGlucose = async (req: Request, res: Response) => {
   try {
-    const { profile_id, level, units } = req.body;
+    const { account_id, level, units } = req.body;
 
-    if (!profile_id) {
+    if (!account_id) {
       return res.status(400).json({
         status: "error",
         message: "Profile ID is required to create blood glucose measurement",
       });
     }
+
+    const profile_id = await getProfileIdByAccountId(account_id);
 
     const result = await db.transaction(async (tx) => {
       const [newBloodGlucose] = await tx
@@ -158,14 +160,16 @@ export const viewBloodGlucoseReport = async (req: Request, res: Response) => {
   try {
     const start_date = req.query.start_date;
     const end_date = req.query.end_date;
-    const profile_id = req.params.profile_id;
+    const account_id = req.params.account_id;
 
-    if (!profile_id) {
+    if (!account_id) {
       return res.status(400).json({
         status: "error",
         message: "Profile ID is required to view blood glucose report",
       });
     }
+
+    const profile_id = await getProfileIdByAccountId(account_id);
 
     if (typeof start_date !== "string" || typeof end_date !== "string") {
       return res.status(400).json({
