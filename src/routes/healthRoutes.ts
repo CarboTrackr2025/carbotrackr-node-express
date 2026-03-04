@@ -30,7 +30,7 @@ const decimal_precision_5_scale_2 = z
   });
 
 const createBloodPressureSchema = z.object({
-  profile_id: z.uuid(),
+  account_id: z.string(),
   systolic_mmHg: z.int().positive(),
   diastolic_mmHg: z.int().positive(),
 });
@@ -45,7 +45,7 @@ const reportBloodPressureQuerySchema = z.object({
 });
 
 const createBloodGlucoseSchema = z.object({
-  profile_id: z.uuid(),
+  account_id: z.string(),
   level: z
     .string()
     .regex(decimal_precision_5_scale_2_regex)
@@ -69,7 +69,7 @@ healthRouter.post(
   createBloodPressure,
 );
 healthRouter.get(
-  "/:profile_id/blood-pressure/report",
+  "/:account_id/blood-pressure/report",
   validateQuery(reportBloodPressureQuerySchema),
   viewBloodPressureReport,
 );
@@ -80,7 +80,7 @@ healthRouter.post(
   createBloodGlucose,
 );
 healthRouter.get(
-  "/:profile_id/blood-glucose/report",
+  "/:account_id/blood-glucose/report",
   validateQuery(reportBloodGlucoseQuerySchema),
   viewBloodGlucoseReport,
 );
