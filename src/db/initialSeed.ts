@@ -34,6 +34,7 @@ const seed = () => async() => {
 
         console.log("Creating demo account")
         const [demoAccount] = await db.insert(accounts).values({
+            id: "demo-account-id",
             email: "demo@gmail.com",
         }).returning()
 
