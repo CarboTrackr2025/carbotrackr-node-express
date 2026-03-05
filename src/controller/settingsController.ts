@@ -126,8 +126,11 @@ export const getHealthSettings = async (req: Request, res: Response) => {
                 daily_calorie_goal_kcal: healthMetrics.daily_calorie_goal_kcal,
                 daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
                 reminder_frequency: healthMetrics.reminder_frequency,
+                blood_glucose_unit: healthMetrics.blood_glucose_unit,
+                diagnosed_with: profiles.diagnosed_with,
             })
             .from(healthMetrics)
+            .innerJoin(profiles, eq(healthMetrics.profile_id, profiles.id))
             .where(eq(healthMetrics.profile_id, profile_id))
             .limit(1)
 
@@ -158,7 +161,7 @@ export const putHealthSettings = async (req: Request, res: Response) => {
 
     try
     {
-        const { account_id, daily_calorie_goal_kcal, daily_carbohydrate_goal_g, reminder_frequency } = req.body
+        const { account_id, daily_calorie_goal_kcal, daily_carbohydrate_goal_g, reminder_frequency, diagnosed_with } = req.body
 
         if (!account_id) {
             return res.status(400).json({
@@ -182,12 +185,34 @@ export const putHealthSettings = async (req: Request, res: Response) => {
                 daily_calorie_goal_kcal: healthMetrics.daily_calorie_goal_kcal,
                 daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
                 reminder_frequency: healthMetrics.reminder_frequency,
+                blood_glucose_unit: healthMetrics.blood_glucose_unit,
+            })
+
+        if (!updatedHealthSettings) {
+            return res.status(404).json({
+                status: "error",
+                message: "Health settings not found for the given account ID",
+            })
+        }
+
+        const [updatedProfile] = await db
+            .update(profiles)
+            .set({
+                diagnosed_with,
+                updated_at: new Date(),
+            })
+            .where(eq(profiles.id, profile_id))
+            .returning({
+                diagnosed_with: profiles.diagnosed_with,
             })
 
         return res.status(200).json({
             status: "success",
             message: "Health settings updated successfully",
-            data: updatedHealthSettings,
+            data: {
+                ...updatedHealthSettings,
+                diagnosed_with: updatedProfile?.diagnosed_with,
+            },
         })
 
     }
@@ -197,86 +222,6 @@ export const putHealthSettings = async (req: Request, res: Response) => {
         return res.status(500).json({
             status: "error",
             message: "An error occurred while updating health settings.",
-        })
-    }
-}
-
-// For testing will be deleted
-export const postHealthSettings = async (req: Request, res: Response) => {
-    try
-    {
-        const {
-            account_id,
-            daily_calorie_goal_kcal,
-            daily_carbohydrate_goal_g,
-            reminder_frequency
-        } = req.body
-
-        if (!account_id) {
-            return res.status(400).json({
-                status: "error",
-                message: "Account ID is required",
-            })
-        }
-
-        if (
-            daily_calorie_goal_kcal == null ||
-            daily_carbohydrate_goal_g == null ||
-            reminder_frequency == null
-        ) {
-            return res.status(400).json({
-                status: "error",
-                message: "daily_calorie_goal_kcal, daily_carbohydrate_goal_g, and reminder_frequency are required",
-            })
-        }
-
-        const profile_id = await getProfileIdByAccountId(String(account_id).trim())
-
-        const existingHealthSettings = await db
-            .select({ id: healthMetrics.id })
-            .from(healthMetrics)
-            .where(eq(healthMetrics.profile_id, profile_id))
-            .limit(1)
-
-        if (existingHealthSettings.length > 0) {
-            return res.status(409).json({
-                status: "error",
-                message: "Health settings already exist for this account",
-            })
-        }
-
-        const [createdHealthSettings] = await db
-            .insert(healthMetrics)
-            .values({
-                profile_id,
-                daily_calorie_goal_kcal: Number(daily_calorie_goal_kcal),
-                daily_carbohydrate_goal_g: Number(daily_carbohydrate_goal_g),
-                reminder_frequency: Number(reminder_frequency),
-                created_at: new Date(),
-                updated_at: new Date(),
-            })
-            .returning({
-                id: healthMetrics.id,
-                profile_id: healthMetrics.profile_id,
-                daily_calorie_goal_kcal: healthMetrics.daily_calorie_goal_kcal,
-                daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
-                reminder_frequency: healthMetrics.reminder_frequency,
-                created_at: healthMetrics.created_at,
-                updated_at: healthMetrics.updated_at,
-            })
-
-        return res.status(201).json({
-            status: "success",
-            message: "Health settings created successfully",
-            data: createdHealthSettings,
-        })
-    }
-    catch (e)
-    {
-        console.error("Error: POST - Health Settings", e)
-        return res.status(500).json({
-            status: "error",
-            message: "An error occurred while creating health settings.",
         })
     }
 }
