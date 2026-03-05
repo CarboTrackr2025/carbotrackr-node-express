@@ -55,37 +55,44 @@ export const profiles = createTable(
   ],
 );
 
+export const bloodGlucoseUnitsEnum = pgEnum("blood_glucose_units", [
+    "MG_DL",
+    "MMOL_L",
+]);
 export const healthMetrics = createTable(
-  "health_metrics",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    profile_id: uuid("profile_id")
-      .references(() => profiles.id, { onDelete: "cascade" })
-      .notNull(),
-    daily_calorie_goal_kcal: integer("daily_calorie_goal_kcal").notNull(),
-    daily_carbohydrate_goal_g: numeric("daily_carbohydrate_goal_g", {
-      precision: 5,
-      scale: 2,
-      mode: "number",
-    }).notNull(),
-    reminder_frequency: integer("reminder_frequency").notNull(),
-    created_at: timestamp("created_at").defaultNow().notNull(),
-    updated_at: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (t) => [
-    check(
-      "health_metrics_daily_calorie_goal_kcal_gt_0",
-      sql`${t.daily_calorie_goal_kcal} > 0`,
-    ),
-    check(
-      "health_metrics_daily_carbohydrate_goal_g_gt_0",
-      sql`${t.daily_carbohydrate_goal_g} > 0`,
-    ),
-    check(
-      "health_metrics_reminder_frequency_0_to_3",
-      sql`${t.reminder_frequency} BETWEEN 0 AND 3`,
-    ),
-  ],
+    "health_metrics",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        profile_id: uuid("profile_id")
+            .references(() => profiles.id, { onDelete: "cascade" })
+            .notNull(),
+        daily_calorie_goal_kcal: integer("daily_calorie_goal_kcal").notNull(),
+        daily_carbohydrate_goal_g: numeric("daily_carbohydrate_goal_g", {
+            precision: 5,
+            scale: 2,
+            mode: "number",
+        }).notNull(),
+        blood_glucose_unit: bloodGlucoseUnitsEnum("blood_glucose_unit")
+            .notNull()
+            .default("MG_DL"),
+        reminder_frequency: integer("reminder_frequency").notNull(),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (t) => [
+        check(
+            "health_metrics_daily_calorie_goal_kcal_gt_0",
+            sql`${t.daily_calorie_goal_kcal} > 0`,
+        ),
+        check(
+            "health_metrics_daily_carbohydrate_goal_g_gt_0",
+            sql`${t.daily_carbohydrate_goal_g} > 0`,
+        ),
+        check(
+            "health_metrics_reminder_frequency_0_to_3",
+            sql`${t.reminder_frequency} BETWEEN 0 AND 3`,
+        ),
+    ],
 );
 
 export const bloodPressureMeasurements = createTable(
@@ -105,10 +112,7 @@ export const bloodPressureMeasurements = createTable(
   ],
 );
 
-export const bloodGlucoseUnitsEnum = pgEnum("blood_glucose_units", [
-  "MG_DL",
-  "MMOL_L",
-]);
+
 export const bloodGlucoseMeasurements = createTable(
   "blood_glucose_measurements",
   {
