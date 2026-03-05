@@ -126,7 +126,6 @@ export const getHealthSettings = async (req: Request, res: Response) => {
                 daily_calorie_goal_kcal: healthMetrics.daily_calorie_goal_kcal,
                 daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
                 reminder_frequency: healthMetrics.reminder_frequency,
-                blood_glucose_unit: healthMetrics.blood_glucose_unit,
                 diagnosed_with: profiles.diagnosed_with,
             })
             .from(healthMetrics)
@@ -185,7 +184,6 @@ export const putHealthSettings = async (req: Request, res: Response) => {
                 daily_calorie_goal_kcal: healthMetrics.daily_calorie_goal_kcal,
                 daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
                 reminder_frequency: healthMetrics.reminder_frequency,
-                blood_glucose_unit: healthMetrics.blood_glucose_unit,
             })
 
         if (!updatedHealthSettings) {

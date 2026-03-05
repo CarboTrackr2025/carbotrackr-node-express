@@ -55,10 +55,7 @@ export const profiles = createTable(
   ],
 );
 
-export const bloodGlucoseUnitsEnum = pgEnum("blood_glucose_units", [
-    "MG_DL",
-    "MMOL_L",
-]);
+
 export const healthMetrics = createTable(
     "health_metrics",
     {
@@ -72,9 +69,6 @@ export const healthMetrics = createTable(
             scale: 2,
             mode: "number",
         }).notNull(),
-        blood_glucose_unit: bloodGlucoseUnitsEnum("blood_glucose_unit")
-            .notNull()
-            .default("MG_DL"),
         reminder_frequency: integer("reminder_frequency").notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
@@ -125,7 +119,6 @@ export const bloodGlucoseMeasurements = createTable(
       scale: 2,
       mode: "number",
     }).notNull(),
-    units: bloodGlucoseUnitsEnum("units").notNull(),
     created_at: timestamp("created_at").defaultNow().notNull(),
     updated_at: timestamp("updated_at").defaultNow().notNull(),
   },
