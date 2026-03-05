@@ -29,6 +29,7 @@ const putHealthSettingsSchema = z.object({
     daily_calorie_goal_kcal: z.number().positive(),
     daily_carbohydrate_goal_g: z.number().positive(),
     reminder_frequency: z.number().int().positive(),
+    diagnosed_with: z.enum(["TYPE_2_DIABETES", "PRE_DIABETES", "NOT_APPLICABLE"]),
 })
 
 
