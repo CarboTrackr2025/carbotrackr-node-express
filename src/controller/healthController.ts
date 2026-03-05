@@ -122,7 +122,7 @@ export const createBloodGlucose = async (req: Request, res: Response) => {
     if (!account_id) {
       return res.status(400).json({
         status: "error",
-        message: "Profile ID is required to create blood glucose measurement",
+        message: "Account ID is required to create blood glucose measurement",
       });
     }
 
@@ -165,7 +165,7 @@ export const viewBloodGlucoseReport = async (req: Request, res: Response) => {
     if (!account_id) {
       return res.status(400).json({
         status: "error",
-        message: "Profile ID is required to view blood glucose report",
+        message: "Account ID is required to view blood glucose report",
       });
     }
 
