@@ -1,7 +1,6 @@
 import { Router } from "express"
 import {
     getAccountSettings,
-    postHealthSettings,
     getHealthSettings,
     putAccountSettings,
     putHealthSettings
@@ -30,6 +29,7 @@ const putHealthSettingsSchema = z.object({
     daily_calorie_goal_kcal: z.number().positive(),
     daily_carbohydrate_goal_g: z.number().positive(),
     reminder_frequency: z.number().int().positive(),
+    diagnosed_with: z.enum(["TYPE_2_DIABETES", "PRE_DIABETES", "NOT_APPLICABLE"]),
 })
 
 
@@ -37,9 +37,6 @@ router.get("/account/:account_id", validateParams(accountSettingsParamsSchema), 
 router.put("/account/save", validateBody(putAccountSettingsBodySchema), putAccountSettings)
 
 router.get("/health/:account_id", validateParams(accountSettingsParamsSchema), getHealthSettings)
-
-// Will be deleted for testing only
-// router.post("/health/save", validateBody(postHealthSettingsBodySchema), postHealthSettings)
 router.put("/health/save", validateBody(putHealthSettingsSchema), putHealthSettings)
 
 export default router
