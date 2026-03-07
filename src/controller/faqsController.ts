@@ -49,3 +49,28 @@ export const createFAQ = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to create FAQ" });
   }
 };
+
+// GET FAQs by main_topic
+export const getFAQsByTopic = async (req: Request, res: Response) => {
+  try {
+    const { topic } = req.query;
+
+    if (!topic) {
+      res.status(400).json({ error: "Topic query parameter is required" });
+      return;
+    }
+
+    const faqsByTopic = await db.query.faqs.findMany({
+      where: eq(faqs.main_topic, topic as string),
+    });
+
+    if (faqsByTopic.length === 0) {
+      res.status(404).json({ error: "No FAQs found for this topic" });
+      return;
+    }
+
+    res.status(200).json(faqsByTopic);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch FAQs by topic" });
+  }
+};
