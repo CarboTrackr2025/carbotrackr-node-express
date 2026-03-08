@@ -6,6 +6,6 @@ process.env.CLERK_API_KEY = process.env.CLERK_API_KEY ?? env.CLERK_API_KEY ?? en
 import app from "./server.ts"
 
 // Boot the API server (routes are mounted in server.ts, including /health)
-app.listen(env.PORT, () => {
-    console.log(`Server is running on http://localhost:${env.PORT}`)
+app.listen(env.PORT, "0.0.0.0", () => {
+    console.log(`Server is running on http://0.0.0.0:${env.PORT}`)
 })

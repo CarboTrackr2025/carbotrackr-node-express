@@ -18,7 +18,8 @@
     "db:reportSeed": "node src/db/reportSeed.ts",
     "db:settingsSeed": "node src/db/settingsSeed.ts",
     "db:initialSeed": "node src/db/initialSeed.ts",
-    "dev": "node --watch src/index.ts"
+    "dev": "node --watch src/index.ts",
+    "start": "node src/index.ts"
   },
   "license": "MIT",
   "author": "eisBlume0901",
