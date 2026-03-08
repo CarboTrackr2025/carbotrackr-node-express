@@ -7,7 +7,8 @@
   "scripts": {
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/migrate.ts",
+    "db:setup": "npm run db:generate && npm run db:migrate",
     "db:studio": "drizzle-kit studio",
     "db:authSeed": "node src/db/authSeed.ts",
     "db:contactSeed": "node src/db/contactSeed.ts",
