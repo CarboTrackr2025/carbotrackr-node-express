@@ -6,6 +6,7 @@ import { db } from "../db/connection.ts"
 import {foodLogs} from "../db/schema.ts"
 import { buildBaseString, buildNormalizedParams, normalizeToArray, signHmacSha1, toNumber } from "../utils/foodLogs.utils.ts"
 import getProfileIdByAccountId from "../utils/auth.utils.ts";
+import {eq, gte, lte, and, desc} from "drizzle-orm";
 
 export type FatSecretServingDetails = {
     food_id: string;
@@ -160,6 +161,7 @@ export const getFoodByQuery = async (req: Request, res: Response) => {
             },
         })
     } catch (e: any) {
+        console.error("Error: GET - Food Search", e)
         const status = e?.response?.status
         const details = e?.response?.data ?? e?.message ?? String(e)
         return res.status(status ?? 500).json({
@@ -181,6 +183,7 @@ export const getFoodDetailsByServingId = async (req: Request, res: Response) => 
         const details = await fetchFatSecretServingDetails(food_id, serving_id);
         return res.json(details);
     } catch (e: any) {
+        console.error("Error: GET - Food Details by Serving ID", e);
         return res
             .status(500)
             .json({
@@ -267,6 +270,7 @@ export const postFoodLog = async (req: Request, res: Response) => {
             food_log: inserted?.[0] ?? null,
         })
     } catch (e: any) {
+        console.error("Error: POST - Create Food Log", e)
         const status = e?.response?.status
         const details = e?.response?.data ?? e?.message ?? String(e)
         return res.status(status ?? 500).json({
@@ -276,3 +280,70 @@ export const postFoodLog = async (req: Request, res: Response) => {
     }
 }
 
+export const getFoodLogsByAccountId = async (req: Request, res: Response) => {
+    try
+    {
+        const { start_date, end_date } = req.query
+        const account_id = String(req.params.account_id ?? "").trim()
+
+        if (!account_id) {
+            return res.status(400).json({
+                status: "error",
+                message: "Account ID is required to fetch food logs",
+            })
+        }
+
+        const profile_id = await getProfileIdByAccountId(account_id)
+
+        if (typeof start_date !== "string" || typeof end_date !== "string") {
+            return res.status(400).json({
+                status: "error",
+                message: "start_date and end_date query params are required",
+            });
+        }
+
+        const parseStart = (raw: string) => {
+            if (raw.includes("T")) return new Date(raw);
+            return new Date(`${raw}T00:00:00.000Z`);
+        };
+
+        const parseEnd = (raw: string) => {
+            if (raw.includes("T")) return new Date(raw);
+            return new Date(`${raw}T23:59:59.999Z`);
+        };
+
+        const start = parseStart(start_date);
+        const end = parseEnd(end_date);
+
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            return res.status(400).json({
+                status: "error",
+                message: "Invalid date format for start_date or end_date",
+            });
+        }
+
+        const result = await db
+            .select()
+            .from(foodLogs)
+            .where(
+                and(
+                    eq(foodLogs.profile_id, profile_id),
+                    gte(foodLogs.created_at, start as Date),
+                    lte(foodLogs.created_at, end as Date),
+                ),
+            ).orderBy(desc(foodLogs.created_at))
+
+        res.status(200).json({
+            status: "success",
+            message: "Fetched food logs successfully",
+            data: result,
+        })
+    }
+    catch (e)
+    {
+        console.error("Error: GET - Food Logs by Account ID", e)
+        return res.status(500).json({
+            error: "Failed to fetch food logs for this account ID",
+        })
+    }
+}
