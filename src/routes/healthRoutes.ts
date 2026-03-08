@@ -51,7 +51,6 @@ const createBloodGlucoseSchema = z.object({
     .regex(decimal_precision_5_scale_2_regex)
     .transform((val) => Number(val))
     .refine((n) => n > 0, { message: "Level must be greater than 0" }),
-  units: z.enum(["MG_DL", "MMOL_L"]),
 });
 
 const reportBloodGlucoseQuerySchema = z.object({
