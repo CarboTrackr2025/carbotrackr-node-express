@@ -347,3 +347,40 @@ export const getFoodLogsByAccountId = async (req: Request, res: Response) => {
         })
     }
 }
+
+export const deleteFoodLog = async (req: Request, res: Response) => {
+    try {
+        const foodLog_id = String(req.params.foodLog_id ?? "").trim()
+
+        if (!foodLog_id) {
+            return res.status(400).json({
+                status: "error",
+                message: "foodLog_id is required",
+            })
+        }
+
+        const deleted = await db
+            .delete(foodLogs)
+            .where(eq(foodLogs.id, foodLog_id))
+            .returning({ id: foodLogs.id })
+
+        if (!deleted.length) {
+            return res.status(404).json({
+                status: "error",
+                message: "Food log not found",
+            })
+        }
+
+        return res.status(200).json({
+            status: "success",
+            message: "Food log deleted successfully",
+            data: { id: deleted[0].id },
+        })
+    } catch (e) {
+        console.error("Error: DELETE - Food Log", e)
+        return res.status(500).json({
+            status: "error",
+            message: "Failed to delete food log",
+        })
+    }
+}
