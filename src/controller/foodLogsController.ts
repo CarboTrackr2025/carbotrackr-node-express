@@ -365,11 +365,11 @@ export const deleteFoodLog = async (req: Request, res: Response) => {
             .returning({
                 id: foodLogs.id,
                 food_name: foodLogs.food_name,
+                meal_type: foodLogs.meal_type,
                 calories_kcal: foodLogs.calories_kcal,
                 carbohydrates_g: foodLogs.carbohydrates_g,
                 protein_g: foodLogs.protein_g,
                 fat_g: foodLogs.fat_g,
-                meal_type: foodLogs.meal_type,
             })
 
         if (!deleted.length) {
