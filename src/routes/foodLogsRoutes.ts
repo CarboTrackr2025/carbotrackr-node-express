@@ -50,7 +50,7 @@ const foodLogsReportQuerySchema = z.object({
 });
 
 const foodLogIdParamSchema = z.object({
-    foodLog_id: z.string().trim().min(1, { message: "foodLog_id is required" }),
+    foodLogId: z.string().trim().min(1, { message: "foodLogId is required" }),
 })
 
 router.get("/search", validateQuery(searchFoodQuerySchema), getFoodByQuery);
@@ -69,6 +69,6 @@ router.get(
     getFoodLogsByAccountId,
 );
 
-router.delete("/:foodLog_id/", validateParams(foodLogIdParamSchema), deleteFoodLog)
+router.delete("/:foodLogId/", validateParams(foodLogIdParamSchema), deleteFoodLog)
 
 export default router

@@ -350,19 +350,27 @@ export const getFoodLogsByAccountId = async (req: Request, res: Response) => {
 
 export const deleteFoodLog = async (req: Request, res: Response) => {
     try {
-        const foodLog_id = String(req.params.foodLog_id ?? "").trim()
+        const foodLogId = String(req.params.foodLogId ?? "").trim()
 
-        if (!foodLog_id) {
+        if (!foodLogId) {
             return res.status(400).json({
                 status: "error",
-                message: "foodLog_id is required",
+                message: "foodLogId is required",
             })
         }
 
         const deleted = await db
             .delete(foodLogs)
-            .where(eq(foodLogs.id, foodLog_id))
-            .returning({ id: foodLogs.id })
+            .where(eq(foodLogs.id, foodLogId))
+            .returning({
+                id: foodLogs.id,
+                food_name: foodLogs.food_name,
+                calories_kcal: foodLogs.calories_kcal,
+                carbohydrates_g: foodLogs.carbohydrates_g,
+                protein_g: foodLogs.protein_g,
+                fat_g: foodLogs.fat_g,
+                meal_type: foodLogs.meal_type,
+            })
 
         if (!deleted.length) {
             return res.status(404).json({
@@ -374,7 +382,7 @@ export const deleteFoodLog = async (req: Request, res: Response) => {
         return res.status(200).json({
             status: "success",
             message: "Food log deleted successfully",
-            data: { id: deleted[0].id },
+            data: deleted[0],
         })
     } catch (e) {
         console.error("Error: DELETE - Food Log", e)
