@@ -69,7 +69,7 @@ app.use("/dashboard", dashboardRoutes)
 app.use("/faqs", faqsRoutes)
 app.use("/food-logs", foodLogsRoutes)
 app.use("/health", healthRoutes)
-app.use("/reports", reportRoutes)
+app.use("/report", reportRoutes)
 app.use("/scanner", scannerRoutes)
 app.use("/settings", settingsRoutes)
 
