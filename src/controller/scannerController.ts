@@ -123,6 +123,18 @@ export const postLabelMacrosOnly = async (
     } catch (error: any) {
         console.error("Gemini analysis failed:", error)
 
+        const status = error?.status
+        if (status === 429) {
+            const retryInfo = Array.isArray(error?.error?.details)
+                ? error.error.details.find((d: any) => d?.["@type"]?.includes("RetryInfo"))
+                : null
+            const retryDelay = retryInfo?.retryDelay ?? null
+            return res.status(429).json({
+                error: "Gemini API rate limit exceeded",
+                retry_after: retryDelay,
+            })
+        }
+
         return res.status(500).json({
             error: "Failed to analyze label",
             details: error?.message ?? "Unknown error",
