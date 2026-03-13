@@ -149,6 +149,11 @@ export const foodLogs = createTable(
       scale: 2,
       mode: "number",
     }).notNull(),
+    serving_size_ml: numeric("serving_size_ml", {
+      precision: 6,
+      scale: 2,
+      mode: "number",
+    }),
     number_of_servings: integer("number_of_servings").notNull(),
     meal_type: mealTypeEnum("meal_type").notNull(),
     calories_kcal: integer("calories_kcal").notNull(),

@@ -12,6 +12,9 @@ const responseSchema = z.object({
     carbs_g: z.number().min(0).nullable(),
     protein_g: z.number().min(0).nullable(),
     fat_g: z.number().min(0).nullable(),
+    serving_size_g: z.number().min(0).nullable(),
+    serving_size_ml: z.number().min(0).nullable(),
+    serving_description: z.string().nullable(),
     confidence: z.number().min(0).max(1),
 })
 
@@ -33,6 +36,9 @@ export const postLabelMacrosOnly = async (
             You are reading a Nutrition Facts label image.
             Extract ONLY these values PER SERVING:
             - Calories (kcal)
+            - Serving Size (g)
+            - Serving Size (mL) (only if label uses mL, e.g., water)
+            - Serving Description (slice, cup, etc)
             - Total Carbohydrate (g)
             - Protein (g)
             - Total Fat (g)
@@ -40,7 +46,7 @@ export const postLabelMacrosOnly = async (
             Rules:
             1) Do NOT estimate. If unclear, output null.
             2) Output valid JSON matching:
-            {"calories_kcal": number|null, "carbs_g": number|null, "protein_g": number|null, "fat_g": number|null, "confidence": number}
+            {"calories_kcal": number|null, "carbs_g": number|null, "protein_g": number|null, "fat_g": number|null, "serving_size_g": number|null, "serving_size_ml": number|null, "serving_description": string|null, "confidence": number}
             3) Numbers only.
             4) Output JSON only.
             `
@@ -104,6 +110,9 @@ export const postLabelMacrosOnly = async (
                 carbs_g: data.carbs_g,
                 protein_g: data.protein_g,
                 fat_g: data.fat_g,
+                serving_size_g: data.serving_size_g,
+                serving_size_ml: data.serving_size_ml,
+                serving_description: data.serving_description,
             },
             confidence: data.confidence,
         })
@@ -116,3 +125,4 @@ export const postLabelMacrosOnly = async (
         })
     }
 }
+
