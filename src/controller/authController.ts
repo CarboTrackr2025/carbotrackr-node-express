@@ -35,12 +35,10 @@ export async function createAccount(req: Request, res: Response) {
           .status(409)
           .json({ message: "Account already exists for this userId or email" });
       }
-      return res
-        .status(500)
-        .json({
-          message: insertErr?.message ?? "Database error",
-          details: isDev() ? String(insertErr) : undefined,
-        });
+      return res.status(500).json({
+        message: insertErr?.message ?? "Database error",
+        details: isDev() ? String(insertErr) : undefined,
+      });
     }
 
     // Create skeleton profile linked to the account; let DB auto-generate the UUID id
@@ -97,11 +95,9 @@ export async function loginUser(req: Request, res: Response) {
         .json({ message: "email is not a valid email address" });
     }
     if (password.length < MIN_PASSWORD_LENGTH) {
-      return res
-        .status(400)
-        .json({
-          message: `password must be at least ${MIN_PASSWORD_LENGTH} characters`,
-        });
+      return res.status(400).json({
+        message: `password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      });
     }
 
     // Require a server-side Clerk key to perform server-side sign-in and token exchange
@@ -175,27 +171,23 @@ export async function loginUser(req: Request, res: Response) {
     const sessionId = json?.id ?? json?.session_id ?? undefined;
 
     if (token) {
-      return res
-        .status(200)
-        .json({
-          userId: clerkUser.id,
-          email,
-          token,
-          message: "Signed in",
-          method: "token",
-        });
+      return res.status(200).json({
+        userId: clerkUser.id,
+        email,
+        token,
+        message: "Signed in",
+        method: "token",
+      });
     }
 
     if (sessionId) {
-      return res
-        .status(200)
-        .json({
-          userId: clerkUser.id,
-          email,
-          sessionId,
-          message: "Signed in",
-          method: "sessionId",
-        });
+      return res.status(200).json({
+        userId: clerkUser.id,
+        email,
+        sessionId,
+        message: "Signed in",
+        method: "sessionId",
+      });
     }
 
     // Fallback: authentication succeeded but no token/session id found
@@ -275,12 +267,10 @@ export async function refreshToken(req: Request, res: Response) {
     }
 
     if (!sessionId) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "sessionId must be provided in body or extractable from Authorization token",
-        });
+      return res.status(400).json({
+        message:
+          "sessionId must be provided in body or extractable from Authorization token",
+      });
     }
 
     const clerkApiKey =
@@ -321,19 +311,15 @@ export async function refreshToken(req: Request, res: Response) {
       if (token && typeof token === "string") {
         return res.status(200).json({ token });
       }
-      return res
-        .status(502)
-        .json({
-          message: "no token returned from auth provider",
-          upstreamBody: json,
-        });
+      return res.status(502).json({
+        message: "no token returned from auth provider",
+        upstreamBody: json,
+      });
     } catch (err: any) {
-      return res
-        .status(502)
-        .json({
-          message: "error contacting auth provider",
-          details: String(err),
-        });
+      return res.status(502).json({
+        message: "error contacting auth provider",
+        details: String(err),
+      });
     }
   } catch (err: any) {
     return res
@@ -381,12 +367,10 @@ export async function logout(req: Request, res: Response) {
     }
 
     if (!sessionId) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "sessionId must be provided in body or extractable from Authorization token",
-        });
+      return res.status(400).json({
+        message:
+          "sessionId must be provided in body or extractable from Authorization token",
+      });
     }
 
     const clerkApiKey =
@@ -399,12 +383,10 @@ export async function logout(req: Request, res: Response) {
 
     // Quick sanity check: ensure we're not accidentally using a publishable key (starts with 'pk_')
     if (typeof clerkApiKey === "string" && /^pk_/.test(clerkApiKey)) {
-      return res
-        .status(500)
-        .json({
-          message:
-            "Server is configured with a publishable Clerk API key. Use the Clerk secret key (server key) to revoke sessions.",
-        });
+      return res.status(500).json({
+        message:
+          "Server is configured with a publishable Clerk API key. Use the Clerk secret key (server key) to revoke sessions.",
+      });
     }
 
     // Try SDK-based revoke if available (safer, uses clerk client)
@@ -485,14 +467,12 @@ export async function logout(req: Request, res: Response) {
             headers: hdrs,
             body: text,
           });
-        return res
-          .status(status)
-          .json({
-            message: "failed to revoke session",
-            upstreamStatus: resp.status,
-            upstreamBody: text,
-            upstreamHeaders: hdrs,
-          });
+        return res.status(status).json({
+          message: "failed to revoke session",
+          upstreamStatus: resp.status,
+          upstreamBody: text,
+          upstreamHeaders: hdrs,
+        });
       }
 
       // Clear common cookie names (for browser flows). No-op for mobile.
@@ -505,12 +485,10 @@ export async function logout(req: Request, res: Response) {
 
       return res.status(200).json({ message: "Signed out", sessionId });
     } catch (err: any) {
-      return res
-        .status(502)
-        .json({
-          message: "error contacting auth provider",
-          details: String(err),
-        });
+      return res.status(502).json({
+        message: "error contacting auth provider",
+        details: String(err),
+      });
     }
   } catch (err: any) {
     return res
@@ -539,12 +517,10 @@ export async function getUserSessions(req: Request, res: Response) {
   if (!clerkApiKey)
     return res.status(500).json({ message: "Server missing Clerk API key" });
   if (typeof clerkApiKey === "string" && /^pk_/.test(clerkApiKey))
-    return res
-      .status(500)
-      .json({
-        message:
-          "Server is configured with a publishable Clerk API key. Use the Clerk secret key.",
-      });
+    return res.status(500).json({
+      message:
+        "Server is configured with a publishable Clerk API key. Use the Clerk secret key.",
+    });
 
   const url = `https://api.clerk.com/v1/users/${encodeURIComponent(userId)}/sessions`;
   try {
@@ -646,12 +622,10 @@ export async function getUserSessions(req: Request, res: Response) {
     }));
     return res.status(200).json({ sessions: out });
   } catch (err: any) {
-    return res
-      .status(502)
-      .json({
-        message: "error contacting auth provider",
-        details: String(err),
-      });
+    return res.status(502).json({
+      message: "error contacting auth provider",
+      details: String(err),
+    });
   }
 }
 
@@ -677,12 +651,10 @@ export async function getSessionById(req: Request, res: Response) {
   if (!clerkApiKey)
     return res.status(500).json({ message: "Server missing Clerk API key" });
   if (typeof clerkApiKey === "string" && /^pk_/.test(clerkApiKey))
-    return res
-      .status(500)
-      .json({
-        message:
-          "Server is configured with a publishable Clerk API key. Use the Clerk secret key.",
-      });
+    return res.status(500).json({
+      message:
+        "Server is configured with a publishable Clerk API key. Use the Clerk secret key.",
+    });
 
   const url = `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}`;
   try {
@@ -718,12 +690,10 @@ export async function getSessionById(req: Request, res: Response) {
     }
     return res.status(200).json({ session: json });
   } catch (err: any) {
-    return res
-      .status(502)
-      .json({
-        message: "error contacting auth provider",
-        details: String(err),
-      });
+    return res.status(502).json({
+      message: "error contacting auth provider",
+      details: String(err),
+    });
   }
 }
 
@@ -736,11 +706,9 @@ export async function updateProfile(req: Request, res: Response) {
       ? accountIdRaw[0]
       : accountIdRaw;
     if (!accountId)
-      return res
-        .status(400)
-        .json({
-          message: "accountId (path param or body.accountId) is required",
-        });
+      return res.status(400).json({
+        message: "accountId (path param or body.accountId) is required",
+      });
 
     const profileBody = req.body?.profile ?? req.body;
     const sexRaw = profileBody?.sex;
@@ -837,5 +805,52 @@ export async function updateProfile(req: Request, res: Response) {
     return res
       .status(500)
       .json({ message: err?.message ?? "Unexpected error" });
+  }
+}
+// DELETE /auth/account/:accountId - soft delete user account
+export async function deleteAccount(req: Request, res: Response) {
+  try {
+    const accountIdRaw = req.params.accountId;
+    const accountId = Array.isArray(accountIdRaw)
+      ? accountIdRaw[0]
+      : accountIdRaw;
+
+    if (!accountId) {
+      return res
+        .status(400)
+        .json({ message: "accountId path param is required" });
+    }
+
+    // Check if account exists
+    const [existingAccount] = await db
+      .select()
+      .from(accounts)
+      .where(eq(accounts.id, accountId))
+      .limit(1);
+
+    if (!existingAccount) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    if (existingAccount.deleted_at) {
+      return res.status(410).json({ message: "Account already deleted" });
+    }
+
+    // Soft delete: save original email, obfuscate email, set deleted_at
+    await db
+      .update(accounts)
+      .set({
+        deleted_at: new Date(),
+        deleted_email: existingAccount.email,
+        email: `deleted_${accountId}_${Date.now()}@deleted.com`,
+      })
+      .where(eq(accounts.id, accountId));
+
+    return res.status(200).json({ message: "Account deleted successfully" });
+  } catch (error: any) {
+    console.error("deleteAccount error:", error);
+    return res
+      .status(500)
+      .json({ message: error?.message ?? "Unexpected error" });
   }
 }
