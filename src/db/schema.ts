@@ -9,6 +9,7 @@ import {
   numeric,
   text,
   pgEnum,
+  time,
 } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -70,6 +71,7 @@ export const healthMetrics = createTable(
             mode: "number",
         }).notNull(),
         reminder_frequency: integer("reminder_frequency").notNull(),
+        reminder_time: time("reminder_time", { precision: 6 }).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },
