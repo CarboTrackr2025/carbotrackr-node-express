@@ -1,6 +1,6 @@
 import { Router } from "express"
 import multer from "multer"
-import {postLabelMacrosOnly} from "../controller/scannerController.ts";
+import {postFoodLogByAccountId, postLabelMacrosOnly} from "../controller/scannerController.ts";
 
 const router = Router()
 
@@ -12,7 +12,7 @@ const upload = multer({
 })
 
 router.post("/nutritional_label", upload.single("file"), postLabelMacrosOnly)
-
+router.post("/nutritional_label/save", postFoodLogByAccountId)
 
 export default router
 

@@ -4,6 +4,35 @@ import { db } from "../db/connection.ts"
 import { accounts, profiles, healthMetrics } from "../db/schema.ts"
 import getProfileIdByAccountId from "../utils/auth.utils.ts";
 
+const normalizeReminderTime = (value: unknown): string | null => {
+    if (typeof value === "string") {
+        const trimmed = value.trim()
+
+        if (!trimmed) return null
+
+        const timeMatch = trimmed.match(
+            /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?$/,
+        )
+        if (timeMatch) {
+            return trimmed.length === 5 ? `${trimmed}:00` : trimmed
+        }
+
+        const isoMatch = trimmed.match(
+            /^\d{4}-\d{2}-\d{2}[T\s](\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2})?$/,
+        )
+        if (isoMatch?.[1]) return isoMatch[1]
+    }
+
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        const hh = String(value.getHours()).padStart(2, "0")
+        const mm = String(value.getMinutes()).padStart(2, "0")
+        const ss = String(value.getSeconds()).padStart(2, "0")
+        return `${hh}:${mm}:${ss}`
+    }
+
+    return null
+}
+
 export const getAccountSettings = async (req: Request, res: Response) => {
     try
     {
@@ -126,6 +155,7 @@ export const getHealthSettings = async (req: Request, res: Response) => {
                 daily_calorie_goal_kcal: healthMetrics.daily_calorie_goal_kcal,
                 daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
                 reminder_frequency: healthMetrics.reminder_frequency,
+                reminder_time: healthMetrics.reminder_time,
                 diagnosed_with: profiles.diagnosed_with,
             })
             .from(healthMetrics)
@@ -163,6 +193,7 @@ export const putHealthSettings = async (req: Request, res: Response) => {
             daily_calorie_goal_kcal,
             daily_carbohydrate_goal_g,
             reminder_frequency,
+            reminder_time,
             diagnosed_with,
         } = req.body
 
@@ -181,6 +212,15 @@ export const putHealthSettings = async (req: Request, res: Response) => {
             "NOT_APPLICABLE",
         ])
 
+        const normalizedReminderTime = normalizeReminderTime(reminder_time)
+        if (!normalizedReminderTime) {
+            return res.status(400).json({
+                status: "error",
+                message:
+                    "reminder_time must be in HH:MM, HH:MM:SS, or HH:MM:SS.sss format",
+            })
+        }
+
         if (!diagnosed_with || !allowedDiagnosedWith.has(String(diagnosed_with))) {
             return res.status(400).json({
                 status: "error",
@@ -198,6 +238,7 @@ export const putHealthSettings = async (req: Request, res: Response) => {
                     daily_calorie_goal_kcal: Number(daily_calorie_goal_kcal),
                     daily_carbohydrate_goal_g: Number(daily_carbohydrate_goal_g),
                     reminder_frequency: Number(reminder_frequency),
+                    reminder_time: normalizedReminderTime,
                     updated_at: new Date(),
                 })
                 .where(eq(healthMetrics.profile_id, profile_id))
@@ -205,6 +246,7 @@ export const putHealthSettings = async (req: Request, res: Response) => {
                     daily_calorie_goal_kcal: healthMetrics.daily_calorie_goal_kcal,
                     daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
                     reminder_frequency: healthMetrics.reminder_frequency,
+                    reminder_time: healthMetrics.reminder_time,
                 })
 
             if (!updatedHealthSettings) return null

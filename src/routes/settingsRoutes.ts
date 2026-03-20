@@ -29,6 +29,20 @@ const putHealthSettingsSchema = z.object({
     daily_calorie_goal_kcal: z.number().positive(),
     daily_carbohydrate_goal_g: z.number().positive(),
     reminder_frequency: z.number().int().positive(),
+    reminder_time: z
+        .string()
+        .trim()
+        .refine(
+            (value) =>
+                /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?$/.test(value) ||
+                /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/.test(
+                    value,
+                ),
+            {
+                message:
+                    "reminder_time must be in HH:MM, HH:MM:SS, HH:MM:SS.sss, or ISO datetime format",
+            },
+        ),
     diagnosed_with: z.enum(["TYPE_2_DIABETES", "PRE_DIABETES", "NOT_APPLICABLE"]),
 })
 

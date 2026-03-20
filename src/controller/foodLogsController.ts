@@ -347,3 +347,48 @@ export const getFoodLogsByAccountId = async (req: Request, res: Response) => {
         })
     }
 }
+
+export const deleteFoodLog = async (req: Request, res: Response) => {
+    try {
+        const foodLogId = String(req.params.foodLogId ?? "").trim()
+
+        if (!foodLogId) {
+            return res.status(400).json({
+                status: "error",
+                message: "foodLogId is required",
+            })
+        }
+
+        const deleted = await db
+            .delete(foodLogs)
+            .where(eq(foodLogs.id, foodLogId))
+            .returning({
+                id: foodLogs.id,
+                food_name: foodLogs.food_name,
+                meal_type: foodLogs.meal_type,
+                calories_kcal: foodLogs.calories_kcal,
+                carbohydrates_g: foodLogs.carbohydrates_g,
+                protein_g: foodLogs.protein_g,
+                fat_g: foodLogs.fat_g,
+            })
+
+        if (!deleted.length) {
+            return res.status(404).json({
+                status: "error",
+                message: "Food log not found",
+            })
+        }
+
+        return res.status(200).json({
+            status: "success",
+            message: "Food log deleted successfully",
+            data: deleted[0],
+        })
+    } catch (e) {
+        console.error("Error: DELETE - Food Log", e)
+        return res.status(500).json({
+            status: "error",
+            message: "Failed to delete food log",
+        })
+    }
+}

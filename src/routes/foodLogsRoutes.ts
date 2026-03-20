@@ -1,5 +1,6 @@
 import { Router } from "express"
 import {
+    deleteFoodLog,
     getFoodByQuery,
     getFoodDetailsByServingId, getFoodLogsByAccountId,
     postFoodLog,
@@ -48,6 +49,9 @@ const foodLogsReportQuerySchema = z.object({
     }),
 });
 
+const foodLogIdParamSchema = z.object({
+    foodLogId: z.string().trim().min(1, { message: "foodLogId is required" }),
+})
 
 router.get("/search", validateQuery(searchFoodQuerySchema), getFoodByQuery);
 
@@ -64,5 +68,7 @@ router.get(
     validateQuery(foodLogsReportQuerySchema),
     getFoodLogsByAccountId,
 );
+
+router.delete("/:foodLogId/", validateParams(foodLogIdParamSchema), deleteFoodLog)
 
 export default router
