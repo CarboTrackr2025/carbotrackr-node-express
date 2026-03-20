@@ -19,6 +19,8 @@ const createTable = pgTableCreator((name) => name);
 export const accounts = createTable("accounts", {
   id: varchar("id", { length: 255 }).primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
+  deleted_at: timestamp("deleted_at"),
+  deleted_email: varchar("deleted_email", { length: 255 }),
 });
 
 export const sexEnum = pgEnum("sex", ["MALE", "FEMALE"]);
