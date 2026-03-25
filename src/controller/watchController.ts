@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 import db from "../db/connection.ts";
-import { watchMetrics } from "../db/schema.ts";
+import { watchMetrics, profiles } from "../db/schema.ts";
 
 const toPositiveInteger = (value: unknown): number | null => {
   const parsed =
@@ -27,20 +27,89 @@ const toNonNegativeInteger = (value: unknown): number | null => {
   return parsed;
 };
 
+// Helper to validate UUID v4-ish format
+const isValidUuid = (id: string | null | undefined) => {
+  if (!id || typeof id !== "string") return false;
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRe.test(id);
+};
+
 export const createWatchMetric = async (req: Request, res: Response) => {
   try {
+    // Accept either profile_id (internal UUID) or account_id (external auth id)
     const {
       profile_id,
+      account_id,
       heart_rate_bpm,
       steps_count,
       calories_burned_kcal,
       measured_at,
     } = req.body ?? {};
 
-    if (!profile_id || typeof profile_id !== "string") {
+    // Log incoming payload for easier debugging (may remove in production)
+    console.debug("createWatchMetric payload:", {
+      profile_id,
+      account_id,
+      heart_rate_bpm,
+      steps_count,
+      calories_burned_kcal,
+      measured_at,
+    });
+
+    if ((!profile_id || typeof profile_id !== "string") && (!account_id || typeof account_id !== "string")) {
       return res.status(400).json({
         status: "Error",
-        message: "profile_id is required and must be a valid UUID string",
+        message: "Either profile_id (internal) or account_id (external) is required",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Resolve to internal profile UUID. Prefer explicit account_id if provided.
+    let internalProfileId: string | null = null;
+
+    if (account_id && typeof account_id === "string") {
+      const byAccount = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.account_id, account_id))
+        .limit(1);
+      if (byAccount && byAccount.length > 0) internalProfileId = byAccount[0].id;
+    }
+
+    // If no account_id match, try using profile_id as account_id first then as internal id
+    if (!internalProfileId && profile_id && typeof profile_id === "string") {
+      const byAccount = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.account_id, profile_id))
+        .limit(1);
+      if (byAccount && byAccount.length > 0) internalProfileId = byAccount[0].id;
+      else {
+        const byId = await db
+          .select({ id: profiles.id })
+          .from(profiles)
+          .where(eq(profiles.id, profile_id))
+          .limit(1);
+        if (byId && byId.length > 0) internalProfileId = byId[0].id;
+      }
+    }
+
+    // After resolving internalProfileId
+    if (!internalProfileId) {
+      return res.status(404).json({
+        status: "Error",
+        message: "Profile not found for provided profile_id/account_id",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Validate that resolved id is a proper UUID before inserting to uuid column
+    if (!isValidUuid(internalProfileId)) {
+      console.error("Resolved profile id is not a valid UUID:", internalProfileId);
+      return res.status(400).json({
+        status: "Error",
+        message: "Resolved internal profile id is not a valid UUID",
+        resolved: internalProfileId,
         timestamp: new Date().toISOString(),
       });
     }
@@ -82,7 +151,7 @@ export const createWatchMetric = async (req: Request, res: Response) => {
     }
 
     const values: typeof watchMetrics.$inferInsert = {
-      profile_id,
+      profile_id: internalProfileId,
       heart_rate_bpm: heartRate,
       steps_count: steps,
       calories_burned_kcal: calories,
@@ -101,14 +170,25 @@ export const createWatchMetric = async (req: Request, res: Response) => {
       values.measured_at = parsedDate;
     }
 
-    const [created] = await db.insert(watchMetrics).values(values).returning();
-
-    return res.status(201).json({
-      status: "Success",
-      data: created,
-      timestamp: new Date().toISOString(),
-    });
+    try {
+      const [created] = await db.insert(watchMetrics).values(values).returning();
+      return res.status(201).json({
+        status: "Success",
+        data: created,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (dbError: any) {
+      console.error("DB insert error in createWatchMetric:", dbError?.message ?? dbError, {
+        attemptedValues: values,
+      });
+      return res.status(500).json({
+        status: "Error",
+        message: dbError?.message ?? "Failed to create watch metric",
+        timestamp: new Date().toISOString(),
+      });
+    }
   } catch (error: any) {
+    console.error("createWatchMetric error:", error?.message ?? error);
     return res.status(500).json({
       status: "Error",
       message: error?.message ?? "Failed to create watch metric",
@@ -129,7 +209,35 @@ export const getWatchMetrics = async (req: Request, res: Response) => {
       });
     }
 
-    const conditions = [eq(watchMetrics.profile_id, profile_id)];
+    // Resolve account id -> internal profile id the same way as the create route
+    const resolvedProfile = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.account_id, profile_id))
+      .limit(1);
+
+    let internalProfileId: string | null = null;
+    if (resolvedProfile && resolvedProfile.length > 0) {
+      internalProfileId = resolvedProfile[0].id;
+    } else {
+      const byId = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.id, profile_id))
+        .limit(1);
+      if (byId && byId.length > 0) internalProfileId = byId[0].id;
+    }
+
+    if (!internalProfileId) {
+      return res.status(200).json({
+        status: "Success",
+        data: [],
+        count: 0,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const conditions = [eq(watchMetrics.profile_id, internalProfileId)];
 
     if (typeof from === "string") {
       const fromDate = new Date(from);
@@ -182,6 +290,7 @@ export const getWatchMetrics = async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
+    console.error("getWatchMetrics error:", error?.message ?? error);
     return res.status(500).json({
       status: "Error",
       message: error?.message ?? "Failed to fetch watch metrics",
