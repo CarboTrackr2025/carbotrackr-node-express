@@ -3,6 +3,18 @@ import { and, desc, eq, gte, lte } from "drizzle-orm";
 import db from "../db/connection.ts";
 import { watchMetrics } from "../db/schema.ts";
 
+const toPositiveInteger = (value: unknown): number | null => {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
 const toNonNegativeInteger = (value: unknown): number | null => {
   const parsed =
     typeof value === "number"
@@ -17,26 +29,54 @@ const toNonNegativeInteger = (value: unknown): number | null => {
 
 export const createWatchMetric = async (req: Request, res: Response) => {
   try {
-    const { profile_id, heart_rate_bpm, steps_count, calories_burned_kcal, measured_at } =
-      req.body ?? {};
+    const {
+      profile_id,
+      heart_rate_bpm,
+      steps_count,
+      calories_burned_kcal,
+      measured_at,
+    } = req.body ?? {};
 
     if (!profile_id || typeof profile_id !== "string") {
       return res.status(400).json({
         status: "Error",
-        message: "profile_id is required",
+        message: "profile_id is required and must be a valid UUID string",
         timestamp: new Date().toISOString(),
       });
     }
 
-    const heartRate = toNonNegativeInteger(heart_rate_bpm);
+    const heartRate = toPositiveInteger(heart_rate_bpm);
     const steps = toNonNegativeInteger(steps_count);
     const calories = toNonNegativeInteger(calories_burned_kcal);
 
-    if (heartRate === null || steps === null || calories === null) {
+    if (heartRate === null) {
       return res.status(400).json({
         status: "Error",
-        message:
-          "heart_rate_bpm, steps_count, and calories_burned_kcal must be non-negative integers",
+        message: "heart_rate_bpm must be a positive integer (> 0)",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (steps === null) {
+      return res.status(400).json({
+        status: "Error",
+        message: "steps_count must be a non-negative integer (>= 0)",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (calories === null) {
+      return res.status(400).json({
+        status: "Error",
+        message: "calories_burned_kcal must be a non-negative integer (>= 0)",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (heartRate >= 300) {
+      return res.status(400).json({
+        status: "Error",
+        message: "heart_rate_bpm must be less than 300",
         timestamp: new Date().toISOString(),
       });
     }
@@ -46,6 +86,7 @@ export const createWatchMetric = async (req: Request, res: Response) => {
       heart_rate_bpm: heartRate,
       steps_count: steps,
       calories_burned_kcal: calories,
+      measured_at: new Date(),
     };
 
     if (measured_at !== undefined && measured_at !== null) {
@@ -148,4 +189,3 @@ export const getWatchMetrics = async (req: Request, res: Response) => {
     });
   }
 };
-
