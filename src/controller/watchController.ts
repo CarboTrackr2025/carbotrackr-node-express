@@ -30,9 +30,48 @@ const toNonNegativeInteger = (value: unknown): number | null => {
 // Helper to validate UUID v4-ish format
 const isValidUuid = (id: string | null | undefined) => {
   if (!id || typeof id !== "string") return false;
-  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuidRe =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRe.test(id);
 };
+
+// Helper: create a JS Date that represents the wall-clock time in the given IANA timezone.
+// This returns a Date whose UTC instant corresponds to the provided timezone's local date/time.
+function dateForZone(
+  dt?: Date | number | string | null,
+  timeZone = "Asia/Singapore",
+) {
+  const base = dt ? new Date(dt) : new Date();
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+    .formatToParts(base)
+    .reduce(
+      (acc: any, part) => {
+        if (part.type !== "literal") acc[part.type] = part.value;
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
+
+  const year = Number(parts.year);
+  const month = Number(parts.month); // 1-based
+  const day = Number(parts.day);
+  const hour = Number(parts.hour);
+  const minute = Number(parts.minute);
+  const second = Number(parts.second);
+
+  // Construct a UTC timestamp that has the same wall-clock components in the target timezone
+  const utcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+  return new Date(utcMs);
+}
 
 export const createWatchMetric = async (req: Request, res: Response) => {
   try {
@@ -56,10 +95,14 @@ export const createWatchMetric = async (req: Request, res: Response) => {
       measured_at,
     });
 
-    if ((!profile_id || typeof profile_id !== "string") && (!account_id || typeof account_id !== "string")) {
+    if (
+      (!profile_id || typeof profile_id !== "string") &&
+      (!account_id || typeof account_id !== "string")
+    ) {
       return res.status(400).json({
         status: "Error",
-        message: "Either profile_id (internal) or account_id (external) is required",
+        message:
+          "Either profile_id (internal) or account_id (external) is required",
         timestamp: new Date().toISOString(),
       });
     }
@@ -73,7 +116,8 @@ export const createWatchMetric = async (req: Request, res: Response) => {
         .from(profiles)
         .where(eq(profiles.account_id, account_id))
         .limit(1);
-      if (byAccount && byAccount.length > 0) internalProfileId = byAccount[0].id;
+      if (byAccount && byAccount.length > 0)
+        internalProfileId = byAccount[0].id;
     }
 
     // If no account_id match, try using profile_id as account_id first then as internal id
@@ -83,7 +127,8 @@ export const createWatchMetric = async (req: Request, res: Response) => {
         .from(profiles)
         .where(eq(profiles.account_id, profile_id))
         .limit(1);
-      if (byAccount && byAccount.length > 0) internalProfileId = byAccount[0].id;
+      if (byAccount && byAccount.length > 0)
+        internalProfileId = byAccount[0].id;
       else {
         const byId = await db
           .select({ id: profiles.id })
@@ -105,7 +150,10 @@ export const createWatchMetric = async (req: Request, res: Response) => {
 
     // Validate that resolved id is a proper UUID before inserting to uuid column
     if (!isValidUuid(internalProfileId)) {
-      console.error("Resolved profile id is not a valid UUID:", internalProfileId);
+      console.error(
+        "Resolved profile id is not a valid UUID:",
+        internalProfileId,
+      );
       return res.status(400).json({
         status: "Error",
         message: "Resolved internal profile id is not a valid UUID",
@@ -155,7 +203,9 @@ export const createWatchMetric = async (req: Request, res: Response) => {
       heart_rate_bpm: heartRate,
       steps_count: steps,
       calories_burned_kcal: calories,
-      measured_at: new Date(),
+      // store measured_at and created_at as Date objects adjusted to Asia/Singapore (GMT+8)
+      measured_at: dateForZone(undefined, "Asia/Singapore"),
+      created_at: dateForZone(undefined, "Asia/Singapore"),
     };
 
     if (measured_at !== undefined && measured_at !== null) {
@@ -167,20 +217,64 @@ export const createWatchMetric = async (req: Request, res: Response) => {
           timestamp: new Date().toISOString(),
         });
       }
-      values.measured_at = parsedDate;
+      // Normalize the provided measured_at into a Date adjusted to Asia/Singapore
+      values.measured_at = dateForZone(parsedDate, "Asia/Singapore");
+    }
+
+    // Prevent duplicate inserts for the same profile within a short time window (±30s)
+    if (values.measured_at) {
+      try {
+        const windowMs = 30 * 1000; // 30 seconds
+        const windowStart = new Date(values.measured_at.getTime() - windowMs);
+        const windowEnd = new Date(values.measured_at.getTime() + windowMs);
+
+        const existing = await db
+          .select()
+          .from(watchMetrics)
+          .where(
+            and(
+              eq(watchMetrics.profile_id, internalProfileId),
+              gte(watchMetrics.measured_at, windowStart),
+              lte(watchMetrics.measured_at, windowEnd),
+            ),
+          )
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          return res.status(200).json({
+            status: "Success",
+            data: existing[0],
+            message: "Existing record returned (duplicate prevented)",
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (err: any) {
+        console.error(
+          "Error checking for existing watch metric:",
+          err?.message ?? err,
+        );
+        // proceed to attempt insert (will surface DB error if any)
+      }
     }
 
     try {
-      const [created] = await db.insert(watchMetrics).values(values).returning();
+      const [created] = await db
+        .insert(watchMetrics)
+        .values(values)
+        .returning();
       return res.status(201).json({
         status: "Success",
         data: created,
         timestamp: new Date().toISOString(),
       });
     } catch (dbError: any) {
-      console.error("DB insert error in createWatchMetric:", dbError?.message ?? dbError, {
-        attemptedValues: values,
-      });
+      console.error(
+        "DB insert error in createWatchMetric:",
+        dbError?.message ?? dbError,
+        {
+          attemptedValues: values,
+        },
+      );
       return res.status(500).json({
         status: "Error",
         message: dbError?.message ?? "Failed to create watch metric",
