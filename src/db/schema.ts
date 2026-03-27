@@ -9,6 +9,7 @@ import {
   numeric,
   text,
   pgEnum,
+  time,
 } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -18,6 +19,8 @@ const createTable = pgTableCreator((name) => name);
 export const accounts = createTable("accounts", {
   id: varchar("id", { length: 255 }).primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
+  deleted_at: timestamp("deleted_at"),
+  deleted_email: varchar("deleted_email", { length: 255 }),
 });
 
 export const sexEnum = pgEnum("sex", ["MALE", "FEMALE"]);
@@ -55,38 +58,38 @@ export const profiles = createTable(
   ],
 );
 
-
 export const healthMetrics = createTable(
-    "health_metrics",
-    {
-        id: uuid("id").primaryKey().defaultRandom(),
-        profile_id: uuid("profile_id")
-            .references(() => profiles.id, { onDelete: "cascade" })
-            .notNull(),
-        daily_calorie_goal_kcal: integer("daily_calorie_goal_kcal").notNull(),
-        daily_carbohydrate_goal_g: numeric("daily_carbohydrate_goal_g", {
-            precision: 5,
-            scale: 2,
-            mode: "number",
-        }).notNull(),
-        reminder_frequency: integer("reminder_frequency").notNull(),
-        created_at: timestamp("created_at").defaultNow().notNull(),
-        updated_at: timestamp("updated_at").defaultNow().notNull(),
-    },
-    (t) => [
-        check(
-            "health_metrics_daily_calorie_goal_kcal_gt_0",
-            sql`${t.daily_calorie_goal_kcal} > 0`,
-        ),
-        check(
-            "health_metrics_daily_carbohydrate_goal_g_gt_0",
-            sql`${t.daily_carbohydrate_goal_g} > 0`,
-        ),
-        check(
-            "health_metrics_reminder_frequency_0_to_3",
-            sql`${t.reminder_frequency} BETWEEN 0 AND 3`,
-        ),
-    ],
+  "health_metrics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    profile_id: uuid("profile_id")
+      .references(() => profiles.id, { onDelete: "cascade" })
+      .notNull(),
+    daily_calorie_goal_kcal: integer("daily_calorie_goal_kcal").notNull(),
+    daily_carbohydrate_goal_g: numeric("daily_carbohydrate_goal_g", {
+      precision: 5,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    reminder_frequency: integer("reminder_frequency").notNull(),
+    reminder_time: time("reminder_time", { precision: 6 }).notNull(),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "health_metrics_daily_calorie_goal_kcal_gt_0",
+      sql`${t.daily_calorie_goal_kcal} > 0`,
+    ),
+    check(
+      "health_metrics_daily_carbohydrate_goal_g_gt_0",
+      sql`${t.daily_carbohydrate_goal_g} > 0`,
+    ),
+    check(
+      "health_metrics_reminder_frequency_0_to_3",
+      sql`${t.reminder_frequency} BETWEEN 0 AND 3`,
+    ),
+  ],
 );
 
 export const bloodPressureMeasurements = createTable(
@@ -105,7 +108,6 @@ export const bloodPressureMeasurements = createTable(
     check("blood_pressure_diastolic_mmHg_gt_0", sql`${t.diastolic_mmHg} > 0`),
   ],
 );
-
 
 export const bloodGlucoseMeasurements = createTable(
   "blood_glucose_measurements",
@@ -296,6 +298,30 @@ export const stepsMeasurements = createTable(
   (t) => [check("steps_count_gte_0", sql`${t.steps_count} >= 0`)],
 );
 
+export const watchMetrics = createTable(
+  "watch_metrics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    profile_id: uuid("profile_id")
+      .references(() => profiles.id, { onDelete: "cascade" })
+      .notNull(),
+    heart_rate_bpm: integer("heart_rate_bpm").notNull(),
+    steps_count: integer("steps_count").notNull(),
+    calories_burned_kcal: integer("calories_burned_kcal").notNull(),
+    measured_at: timestamp("measured_at").defaultNow().notNull(),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("watch_metrics_heart_rate_bpm_gt_0", sql`${t.heart_rate_bpm} > 0`),
+    check("watch_metrics_heart_rate_bpm_lt_300", sql`${t.heart_rate_bpm} < 300`),
+    check("watch_metrics_steps_count_gte_0", sql`${t.steps_count} >= 0`),
+    check(
+      "watch_metrics_calories_burned_kcal_gte_0",
+      sql`${t.calories_burned_kcal} >= 0`,
+    ),
+  ],
+);
+
 export const profilesRelations = relations(profiles, ({ one, many }) => ({
   account: one(accounts, {
     fields: [profiles.account_id],
@@ -314,6 +340,7 @@ export const profilesRelations = relations(profiles, ({ one, many }) => ({
   carbohydrateData: many(carbohydrateData),
   heartRateMeasurements: many(heartRateMeasurements),
   stepsMeasurements: many(stepsMeasurements),
+  watchMetrics: many(watchMetrics),
 }));
 
 export const healthMetricsRelations = relations(healthMetrics, ({ one }) => ({
@@ -387,6 +414,13 @@ export const stepsMeasurementsRelations = relations(
   }),
 );
 
+export const watchMetricsRelations = relations(watchMetrics, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [watchMetrics.profile_id],
+    references: [profiles.id],
+  }),
+}));
+
 export type Account = typeof accounts.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
 export type HealthMetric = typeof healthMetrics.$inferSelect;
@@ -401,6 +435,7 @@ export type CalorieData = typeof calorieData.$inferSelect;
 export type CarbohydrateData = typeof carbohydrateData.$inferSelect;
 export type HeartRateMeasurement = typeof heartRateMeasurements.$inferSelect;
 export type StepsMeasurement = typeof stepsMeasurements.$inferSelect;
+export type WatchMetric = typeof watchMetrics.$inferSelect;
 
 export const insertProfileSchema = createInsertSchema(profiles);
 export const selectProfileSchema = createSelectSchema(profiles);
@@ -450,3 +485,7 @@ export const insertStepsMeasurementSchema =
   createInsertSchema(stepsMeasurements);
 export const selectStepsMeasurementSchema =
   createSelectSchema(stepsMeasurements);
+
+export const insertWatchMetricSchema = createInsertSchema(watchMetrics);
+export const selectWatchMetricSchema = createSelectSchema(watchMetrics);
+

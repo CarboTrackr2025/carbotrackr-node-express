@@ -10,6 +10,7 @@ import healthRoutes from "./routes/healthRoutes.ts"
 import reportRoutes from "./routes/reportRoutes.ts"
 import scannerRoutes from "./routes/scannerRoutes.ts"
 import settingsRoutes from "./routes/settingsRoutes.ts"
+import watchRoutes from "./routes/watchRoutes.ts"
 import { clerkClient, clerkMiddleware } from "@clerk/express"
 
 
@@ -72,6 +73,7 @@ app.use("/health", healthRoutes)
 app.use("/report", reportRoutes)
 app.use("/scanner", scannerRoutes)
 app.use("/settings", settingsRoutes)
+app.use("/watch", watchRoutes)
 
 
 app.get("/health", (req: Request, res: Response) => {
