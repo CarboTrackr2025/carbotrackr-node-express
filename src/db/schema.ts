@@ -135,7 +135,7 @@ export const mealTypeEnum = pgEnum("meal_type", [
 ]);
 export const foodSourceTypeEnum = pgEnum("food_source_type", [
   "FAT_SECRET_API",
-  "AMAZON_SAGE_MAKER_API",
+  "AWS_API",
   "GOOGLE_GEMINI_API",
 ]);
 export const foodLogs = createTable(
