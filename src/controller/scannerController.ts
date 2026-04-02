@@ -143,7 +143,7 @@ export const postLabelMacrosOnly = async (
 }
 
 
-export const postFoodLogByAccountId = async(req: Request, res: Response) => {
+export const postFoodLogByAccountIdFromNutritionalLabelScanner = async(req: Request, res: Response) => {
     try {
         const account_id = String(req.body?.account_id ?? "").trim()
         const food_name = String(req.body?.food_name ?? "").trim()
@@ -231,6 +231,89 @@ export const postFoodLogByAccountId = async(req: Request, res: Response) => {
         })
     } catch (error: any) {
         console.error("Gemini food log insert failed:", error)
+        return res.status(500).json({
+            error: "Failed to create food log",
+            details: error?.message ?? "Unknown error",
+        })
+    }
+}
+
+export const postFoodLogByAccountIdFromSolidScanner = async(req: Request, res: Response) => {
+    try {
+        const account_id = String(req.body?.account_id ?? "").trim()
+        const food_name = String(req.body?.food_name ?? "").trim()
+        const meal_type = String(req.body?.meal_type ?? "").trim().toUpperCase()
+        const meal_id = String(req.body?.meal_id ?? "").trim()
+
+        const number_of_servings_raw = req.body?.number_of_servings
+        const number_of_servings =
+            number_of_servings_raw == null || number_of_servings_raw === ""
+                ? 1
+                : Number(number_of_servings_raw)
+
+        const calories_kcal = Number(req.body?.calories_kcal)
+        const carbohydrates_g = Number(req.body?.carbohydrates_g)
+        const protein_g = Number(req.body?.protein_g)
+        const fat_g = Number(req.body?.fat_g)
+
+        if (!account_id) return res.status(400).json({ error: "account_id is required" })
+        if (!food_name) return res.status(400).json({ error: "food_name is required" })
+        if (!meal_id) return res.status(400).json({ error: "meal_id is required" })
+
+        const allowedMeals = new Set(["BREAKFAST", "LUNCH", "DINNER", "SNACK"])
+        if (!allowedMeals.has(meal_type)) {
+            return res.status(400).json({
+                error: "meal_type must be one of BREAKFAST, LUNCH, DINNER, SNACK",
+                got: meal_type,
+            })
+        }
+
+        if (!Number.isFinite(number_of_servings) || number_of_servings <= 0) {
+            return res.status(400).json({ error: "number_of_servings must be a number > 0" })
+        }
+
+        if (!Number.isFinite(calories_kcal) || calories_kcal < 0) {
+            return res.status(400).json({ error: "calories_kcal must be a number >= 0" })
+        }
+        if (!Number.isFinite(carbohydrates_g) || carbohydrates_g < 0) {
+            return res.status(400).json({ error: "carbohydrates_g must be a number >= 0" })
+        }
+        if (!Number.isFinite(protein_g) || protein_g < 0) {
+            return res.status(400).json({ error: "protein_g must be a number >= 0" })
+        }
+        if (!Number.isFinite(fat_g) || fat_g < 0) {
+            return res.status(400).json({ error: "fat_g must be a number >= 0" })
+        }
+
+        const profile_id = await getProfileIdByAccountId(account_id)
+        if (!profile_id) {
+            return res.status(404).json({ error: "Profile not found for account_id" })
+        }
+
+        const inserted = await db
+            .insert(foodLogs)
+            .values({
+                profile_id,
+                food_name,
+                serving_size_g: 1,
+                serving_size_ml: null,
+                number_of_servings: Math.floor(number_of_servings),
+                meal_type: meal_type as any,
+                calories_kcal: Math.round(calories_kcal),
+                carbohydrates_g,
+                protein_g,
+                fat_g,
+                source_type: "AWS_API",
+                source_id: meal_id,
+            })
+            .returning()
+
+        return res.status(201).json({
+            ok: true,
+            food_log: inserted?.[0] ?? null,
+        })
+    } catch (error: any) {
+        console.error("Solid scanner food log insert failed:", error)
         return res.status(500).json({
             error: "Failed to create food log",
             details: error?.message ?? "Unknown error",
