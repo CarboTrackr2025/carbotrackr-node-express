@@ -1,11 +1,12 @@
 import { Router } from "express"
+import { getCalorieReport, getCarbohydrateReport } from "../controller/reportController.ts"
 
 const router = Router()
 
-// Define here your routes.
+// GET /report/calories?accountId=&startDate=&endDate=
+router.get("/calories", getCalorieReport)
 
-
-
-
+// GET /report/carbohydrates?accountId=&startDate=&endDate=
+router.get("/carbohydrates", getCarbohydrateReport)
 
 export default router
