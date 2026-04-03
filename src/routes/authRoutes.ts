@@ -7,7 +7,6 @@ import {
   logout,
   getUserSessions,
   getSessionById,
-  updateProfile,
   deleteAccount,
 } from "../controller/authController.ts";
 
