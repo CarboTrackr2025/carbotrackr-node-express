@@ -1,6 +1,6 @@
 import { Router } from "express";
 import {
-  createAccount,
+  createUserAccount,
   listUserIds,
   loginUser,
   refreshToken,
@@ -14,7 +14,7 @@ import {
 const router = Router();
 
 // Create an account (persist Clerk user in local DB)
-router.post("/account", createAccount);
+router.post("/account", createUserAccount);
 
 // Login (server-side credential exchange)
 router.post("/login", loginUser);

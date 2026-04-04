@@ -10,7 +10,7 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
 
 // POST /auth/account - persist a Clerk user (created via frontend SDK) in local DB
-export async function createAccount(req: Request, res: Response) {
+export async function createUserAccount(req: Request, res: Response) {
   try {
     const { userId, email } = req.body || {};
     if (!userId || !email) {
@@ -41,39 +41,12 @@ export async function createAccount(req: Request, res: Response) {
       });
     }
 
-    // Create skeleton profile linked to the account; let DB auto-generate the UUID id
-    // Use placeholder values that satisfy notNull constraints
-    try {
-      const [newProfile] = await db
-        .insert(profiles)
-        .values({
-          account_id: userId,
-          sex: "MALE", // placeholder
-          date_of_birth: new Date("2000-01-01"), // placeholder
-          height_cm: 1, // placeholder (will be updated)
-          weight_kg: 1, // placeholder (will be updated)
-          diagnosed_with: "NOT_APPLICABLE", // placeholder
-          created_at: new Date(),
-          updated_at: new Date(),
-        })
-        .returning();
-
-      return res.status(201).json({
-        id: userId,
-        email,
-        profile_id: newProfile?.id,
-      });
-    } catch (profileErr: any) {
-      console.error("Insert skeleton profile error:", profileErr);
-      // Non-fatal: profile can be created/updated separately
-    }
-
     return res.status(201).json({
       id: userId,
       email,
     });
   } catch (error: any) {
-    console.error("createAccount unexpected error:", error);
+    console.error("createUserAccount unexpected error:", error);
     return res
       .status(500)
       .json({ message: error?.message ?? "Unexpected error" });
