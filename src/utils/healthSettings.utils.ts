@@ -1,4 +1,5 @@
 type Sex = "MALE" | "FEMALE"
+type DiagnosedWith = "NOT_APPLICABLE" | "TYPE_2_DIABETES" | "PRE_DIABETES"
 
 type ComputeBmrParams = {
     sex: Sex
@@ -38,5 +39,24 @@ export const computeBmr = ({
     }
 
     return base - 161
+}
+
+export const getDailyCarbohydrateGrams = (
+    dailyCalories: number,
+    diagnosedWith: DiagnosedWith,
+): number => {
+    const carbohydrateRatioByDiagnosis: Record<DiagnosedWith, number> = {
+        // AMDR for general adults: 45-65% of total calories
+        NOT_APPLICABLE: 0.55,
+        // Diabetes-oriented guidance commonly uses 45-60% of total calories
+        PRE_DIABETES: 0.5,
+        TYPE_2_DIABETES: 0.45,
+    }
+
+    const carbohydrateCalories = dailyCalories * carbohydrateRatioByDiagnosis[diagnosedWith]
+    const carbohydrateGrams = carbohydrateCalories / 4
+
+    // 1 gram of carbohydrate = 4 kcal
+    return Number(Math.max(130, carbohydrateGrams).toFixed(2))
 }
 
