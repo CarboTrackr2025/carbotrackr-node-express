@@ -3,6 +3,11 @@ import { eq } from "drizzle-orm"
 import { db } from "../db/connection.ts"
 import { accounts, profiles, healthMetrics } from "../db/schema.ts"
 import getProfileIdByAccountId from "../utils/auth.utils.ts";
+import {
+    calculateAgeFromDateOfBirth,
+    computeBmr,
+    getDailyCarbohydrateGrams,
+} from "../utils/healthSettings.utils.ts"
 
 const normalizeReminderTime = (value: unknown): string | null => {
     if (typeof value === "string") {
@@ -285,6 +290,158 @@ export const putHealthSettings = async (req: Request, res: Response) => {
         return res.status(500).json({
             status: "error",
             message: "An error occurred while updating health settings.",
+        })
+    }
+}
+
+export const postAccountAndHealthSettings = async (req: Request, res: Response) => {
+    try {
+        const {
+            account_id,
+            gender,
+            date_of_birth,
+            height_cm,
+            weight_kg,
+            reminder_frequency,
+            reminder_time,
+            diagnosed_with,
+        } = req.body
+
+        if (!account_id) {
+            return res.status(400).json({
+                status: "error",
+                message: "Account ID is required",
+            })
+        }
+
+        const allowedDiagnosedWith = new Set([
+            "TYPE_2_DIABETES",
+            "PRE_DIABETES",
+            "NOT_APPLICABLE",
+        ])
+
+        if (!diagnosed_with || !allowedDiagnosedWith.has(String(diagnosed_with))) {
+            return res.status(400).json({
+                status: "error",
+                message:
+                    "diagnosed_with must be one of TYPE_2_DIABETES, PRE_DIABETES, NOT_APPLICABLE",
+            })
+        }
+
+        const normalizedReminderTime = normalizeReminderTime(reminder_time)
+        if (!normalizedReminderTime) {
+            return res.status(400).json({
+                status: "error",
+                message:
+                    "reminder_time must be in HH:MM, HH:MM:SS, or HH:MM:SS.sss format",
+            })
+        }
+
+        const profile_id = await getProfileIdByAccountId(String(account_id).trim())
+
+        if (!profile_id) {
+            return res.status(404).json({
+                status: "error",
+                message: "Profile not found for the given account ID",
+            })
+        }
+
+        const parsedDateOfBirth = new Date(date_of_birth)
+        const age_years = calculateAgeFromDateOfBirth(parsedDateOfBirth)
+        const daily_calorie_goal_kcal = Math.round(
+            computeBmr({
+                sex: gender,
+                weight_kg: Number(weight_kg),
+                height_cm: Number(height_cm),
+                age_years,
+            }),
+        )
+        const daily_carbohydrate_goal_g = getDailyCarbohydrateGrams(
+            daily_calorie_goal_kcal,
+            diagnosed_with,
+        )
+
+        const data = await db.transaction(async (tx) => {
+            const existingHealthMetrics = await tx
+                .select({ id: healthMetrics.id })
+                .from(healthMetrics)
+                .where(eq(healthMetrics.profile_id, profile_id))
+                .limit(1)
+
+            if (existingHealthMetrics.length > 0) {
+                throw new Error("HEALTH_SETTINGS_ALREADY_EXISTS")
+            }
+
+            const [updatedProfile] = await tx
+                .update(profiles)
+                .set({
+                    sex: gender,
+                    date_of_birth: parsedDateOfBirth,
+                    height_cm: Number(height_cm),
+                    weight_kg: Number(weight_kg),
+                    diagnosed_with,
+                    updated_at: new Date(),
+                })
+                .where(eq(profiles.id, profile_id))
+                .returning({
+                    account_id: profiles.account_id,
+                    gender: profiles.sex,
+                    date_of_birth: profiles.date_of_birth,
+                    height_cm: profiles.height_cm,
+                    weight_kg: profiles.weight_kg,
+                    diagnosed_with: profiles.diagnosed_with,
+                })
+
+            if (!updatedProfile) return null
+
+            const [createdHealthSettings] = await tx
+                .insert(healthMetrics)
+                .values({
+                    profile_id,
+                    daily_calorie_goal_kcal,
+                    daily_carbohydrate_goal_g,
+                    reminder_frequency: Number(reminder_frequency),
+                    reminder_time: normalizedReminderTime,
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                })
+                .returning({
+                    daily_calorie_goal_kcal: healthMetrics.daily_calorie_goal_kcal,
+                    daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
+                    reminder_frequency: healthMetrics.reminder_frequency,
+                    reminder_time: healthMetrics.reminder_time,
+                })
+
+            return {
+                ...updatedProfile,
+                ...createdHealthSettings,
+            }
+        })
+
+        if (!data) {
+            return res.status(404).json({
+                status: "error",
+                message: "Unable to save account and health settings",
+            })
+        }
+
+        return res.status(201).json({
+            status: "success",
+            message: "Account and health settings created successfully",
+            data,
+        })
+    } catch (e) {
+        if (e instanceof Error && e.message === "HEALTH_SETTINGS_ALREADY_EXISTS") {
+            return res.status(409).json({
+                status: "error",
+                message: "Health settings already exist for the given account ID",
+            })
+        }
+
+        console.error("Error: POST - Account and Health Settings", e)
+        return res.status(500).json({
+            status: "error",
+            message: "An error occurred while creating account and health settings.",
         })
     }
 }

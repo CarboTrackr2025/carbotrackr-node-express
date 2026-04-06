@@ -7,7 +7,6 @@ import {
   logout,
   getUserSessions,
   getSessionById,
-  updateProfile,
   deleteAccount,
 } from "../controller/authController.ts";
 
@@ -31,9 +30,6 @@ router.get("/users", listUserIds);
 // DEV debug routes (handlers themselves will check isDev())
 router.get("/users/:userId/sessions", getUserSessions);
 router.get("/sessions/:sessionId", getSessionById);
-
-// Update profile by account id
-router.put("/profile/:accountId", updateProfile);
 
 // Soft delete account
 router.delete("/account/:accountId", deleteAccount);
