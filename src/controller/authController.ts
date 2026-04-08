@@ -27,6 +27,25 @@ export async function createUserAccount(req: Request, res: Response) {
         id: userId,
         email,
       });
+
+      // Automatically create a blank profile for the new account
+      const [newProfile] = await db
+        .insert(profiles)
+        .values({
+          account_id: userId,
+          sex: "MALE", // Default value
+          date_of_birth: new Date("2000-01-01"), // Default value
+          height_cm: 1, // Must be > 0
+          weight_kg: 1, // Must be > 0
+          diagnosed_with: "NOT_APPLICABLE", // Default value
+        })
+        .returning({ id: profiles.id });
+
+      return res.status(201).json({
+        id: userId,
+        email,
+        profileId: newProfile?.id,
+      });
     } catch (insertErr: any) {
       console.error("Insert account error:", insertErr);
       const pgCode = insertErr?.code || insertErr?.pgCode;
@@ -41,10 +60,7 @@ export async function createUserAccount(req: Request, res: Response) {
       });
     }
 
-    return res.status(201).json({
-      id: userId,
-      email,
-    });
+    // Response has already been sent on successful insert
   } catch (error: any) {
     console.error("createUserAccount unexpected error:", error);
     return res
