@@ -117,7 +117,7 @@ export const viewBloodPressureReport = async (req: Request, res: Response) => {
 
 export const createBloodGlucose = async (req: Request, res: Response) => {
   try {
-    const { account_id, level } = req.body;
+    const { account_id, level, meal_context } = req.body;
 
     if (!account_id) {
       return res.status(400).json({
@@ -134,6 +134,7 @@ export const createBloodGlucose = async (req: Request, res: Response) => {
         .values({
           profile_id,
           level,
+          meal_context,
         })
         .returning();
 
