@@ -109,6 +109,7 @@ export const bloodPressureMeasurements = createTable(
   ],
 );
 
+export const mealContextEnum = pgEnum("meal_context", ["PRE", "POST"]);
 export const bloodGlucoseMeasurements = createTable(
   "blood_glucose_measurements",
   {
@@ -121,6 +122,7 @@ export const bloodGlucoseMeasurements = createTable(
       scale: 2,
       mode: "number",
     }).notNull(),
+    meal_context: mealContextEnum("meal_context").notNull(),
     created_at: timestamp("created_at").defaultNow().notNull(),
     updated_at: timestamp("updated_at").defaultNow().notNull(),
   },

@@ -8,6 +8,7 @@ import {
 import {
   createBloodPressure,
   viewBloodPressureReport,
+  viewLatestDiagnosis,
 } from "../controller/healthController.ts";
 import {
   createBloodGlucose,
@@ -51,6 +52,7 @@ const createBloodGlucoseSchema = z.object({
     .regex(decimal_precision_5_scale_2_regex)
     .transform((val) => Number(val))
     .refine((n) => n > 0, { message: "Level must be greater than 0" }),
+  meal_context: z.enum(["PRE", "POST"]),
 });
 
 const reportBloodGlucoseQuerySchema = z.object({
@@ -60,6 +62,10 @@ const reportBloodGlucoseQuerySchema = z.object({
   end_date: z.string().refine((dateStr) => !isNaN(Date.parse(dateStr)), {
     message: "Invalid end date format",
   }),
+});
+
+const accountIdParamsSchema = z.object({
+  account_id: z.string(),
 });
 
 healthRouter.post(
@@ -80,8 +86,14 @@ healthRouter.post(
 );
 healthRouter.get(
   "/:account_id/blood-glucose/report",
+  validateParams(accountIdParamsSchema),
   validateQuery(reportBloodGlucoseQuerySchema),
   viewBloodGlucoseReport,
+);
+healthRouter.get(
+  "/:account_id/diagnosis",
+  validateParams(accountIdParamsSchema),
+  viewLatestDiagnosis,
 );
 
 export default healthRouter;
