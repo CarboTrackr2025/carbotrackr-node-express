@@ -3,6 +3,7 @@ import { db } from "../db/connection.ts";
 import { bloodPressureMeasurements } from "../db/schema.ts";
 import { and, eq, gte, lte, desc } from "drizzle-orm";
 import { bloodGlucoseMeasurements } from "../db/schema.ts";
+import { profiles } from "../db/schema.ts";
 import getProfileIdByAccountId from "../utils/auth.utils.ts";
 
 export const createBloodPressure = async (req: Request, res: Response) => {
@@ -224,3 +225,49 @@ export const viewBloodGlucoseReport = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const viewLatestDiagnosis = async (req: Request, res: Response) => {
+  try {
+    const rawAccountId = req.params.account_id;
+
+    if (typeof rawAccountId !== "string" || !rawAccountId.trim()) {
+      return res.status(400).json({
+        status: "error",
+        message: "Account ID is required to view diagnosis",
+      });
+    }
+
+    const account_id = rawAccountId.trim();
+
+    const [result] = await db
+      .select({
+        diagnosed_with: profiles.diagnosed_with,
+        created_at: profiles.created_at,
+      })
+      .from(profiles)
+      .where(eq(profiles.account_id, account_id))
+      .orderBy(desc(profiles.created_at))
+      .limit(1);
+
+    if (!result) {
+      return res.status(404).json({
+        status: "error",
+        message: "No diagnosis found for this account",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "Latest diagnosis retrieved successfully",
+      data: result,
+    });
+  } catch (e) {
+    console.error("Error: GET - Latest Diagnosis", e);
+    res.status(500).json({
+      status: "error",
+      message:
+        "An error occurred while retrieving the latest diagnosis. Please check if the account ID is valid.",
+    });
+  }
+};
+

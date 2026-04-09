@@ -8,6 +8,7 @@ import {
 import {
   createBloodPressure,
   viewBloodPressureReport,
+  viewLatestDiagnosis,
 } from "../controller/healthController.ts";
 import {
   createBloodGlucose,
@@ -63,6 +64,10 @@ const reportBloodGlucoseQuerySchema = z.object({
   }),
 });
 
+const accountIdParamsSchema = z.object({
+  account_id: z.string(),
+});
+
 healthRouter.post(
   "/blood-pressure/create",
   validateBody(createBloodPressureSchema),
@@ -81,8 +86,14 @@ healthRouter.post(
 );
 healthRouter.get(
   "/:account_id/blood-glucose/report",
+  validateParams(accountIdParamsSchema),
   validateQuery(reportBloodGlucoseQuerySchema),
   viewBloodGlucoseReport,
+);
+healthRouter.get(
+  "/:account_id/diagnosis",
+  validateParams(accountIdParamsSchema),
+  viewLatestDiagnosis,
 );
 
 export default healthRouter;
