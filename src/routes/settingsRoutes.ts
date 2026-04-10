@@ -1,11 +1,84 @@
 import { Router } from "express"
+import {
+    getAccountSettings,
+    getHealthSettings,
+    postAccountAndHealthSettings,
+    putAccountSettings,
+    putHealthSettings
+} from "../controller/settingsController.ts";
+import { validateParams, validateBody} from "../middleware/validation.ts"
+import { z } from "zod"
 
 const router = Router()
 
-// Define here your routes.
+const accountSettingsParamsSchema = z.object({
+    account_id: z.string().trim().min(1, "Account ID is required")
+})
+
+const putAccountSettingsBodySchema = z.object({
+    account_id: z.string().trim().min(1, { message: "account_id is required" }),
+    date_of_birth: z.string().refine((value) => !isNaN(Date.parse(value)), {
+        message: "date_of_birth must be a valid date",
+    }),
+    gender: z.enum(["MALE", "FEMALE"]),
+    height_cm: z.number().positive(),
+    weight_kg: z.number().positive(),
+})
+
+const putHealthSettingsSchema = z.object({
+    account_id: z.string().trim().min(1, { message: "account_id is required" }),
+    daily_calorie_goal_kcal: z.number().positive(),
+    daily_carbohydrate_goal_g: z.number().positive(),
+    reminder_frequency: z.number().int().positive(),
+    reminder_time: z
+        .string()
+        .trim()
+        .refine(
+            (value) =>
+                /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?$/.test(value) ||
+                /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/.test(
+                    value,
+                ),
+            {
+                message:
+                    "reminder_time must be in HH:MM, HH:MM:SS, HH:MM:SS.sss, or ISO datetime format",
+            },
+        ),
+    diagnosed_with: z.enum(["TYPE_2_DIABETES", "PRE_DIABETES", "NOT_APPLICABLE"]),
+})
+
+const postAccountAndHealthSettingsSchema = z.object({
+    account_id: z.string().trim().min(1, { message: "account_id is required" }),
+    date_of_birth: z.string().refine((value) => !isNaN(Date.parse(value)), {
+        message: "date_of_birth must be a valid date",
+    }),
+    gender: z.enum(["MALE", "FEMALE"]),
+    height_cm: z.number().positive(),
+    weight_kg: z.number().positive(),
+    reminder_frequency: z.number().int().min(0).max(3),
+    reminder_time: z
+        .string()
+        .trim()
+        .refine(
+            (value) =>
+                /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?$/.test(value) ||
+                /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/.test(
+                    value,
+                ),
+            {
+                message:
+                    "reminder_time must be in HH:MM, HH:MM:SS, HH:MM:SS.sss, or ISO datetime format",
+            },
+        ),
+    diagnosed_with: z.enum(["TYPE_2_DIABETES", "PRE_DIABETES", "NOT_APPLICABLE"]),
+})
 
 
+router.get("/account/:account_id", validateParams(accountSettingsParamsSchema), getAccountSettings)
+router.post("/save", validateBody(postAccountAndHealthSettingsSchema), postAccountAndHealthSettings)
+router.put("/account/save", validateBody(putAccountSettingsBodySchema), putAccountSettings)
 
-
+router.get("/health/:account_id", validateParams(accountSettingsParamsSchema), getHealthSettings)
+router.put("/health/save", validateBody(putHealthSettingsSchema), putHealthSettings)
 
 export default router

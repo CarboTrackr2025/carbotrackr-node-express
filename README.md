@@ -35,6 +35,15 @@
 9. Use URL based integration instead of Method based integration as suggested in the documentation.
 10. Test the API Key with Postman or any API testing tool to ensure it works correctly.
 
+#### CLERK_API_KEY
+1. Sign in to Clerk at [`https://clerk.com`] using your organizational account or personal account.
+2. Create a new application or select an existing one.
+3. Navigate to the "Configure your application" section.
+4. Navigate to API keys tab.
+5. From the quick copy, select Express
+4. Copy the CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY to use in your environment variables.
+5. Test the API Key with Postman or any API testing tool to ensure it works correctly. 
+6. Note for Note from King- "Use the Athaina account's API key so that the settings will align"
 
 ## How to do database commands with Drizzle related
 1. Make sure that package.json contains the following scripts so that you can run the commands easily:
