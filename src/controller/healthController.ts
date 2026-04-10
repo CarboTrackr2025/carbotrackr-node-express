@@ -238,16 +238,24 @@ export const viewLatestDiagnosis = async (req: Request, res: Response) => {
     }
 
     const account_id = rawAccountId.trim();
+    const profile_id = await getProfileIdByAccountId(account_id);
+
+    if (!profile_id) {
+      return res.status(404).json({
+        status: "error",
+        message: "No profile found for this account",
+      });
+    }
 
     const [result] = await db
-      .select({
-        diagnosed_with: profiles.diagnosed_with,
-        created_at: profiles.created_at,
-      })
-      .from(profiles)
-      .where(eq(profiles.account_id, account_id))
-      .orderBy(desc(profiles.created_at))
-      .limit(1);
+        .select({
+          diagnosed_with: profiles.diagnosed_with,
+          created_at: profiles.created_at,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, profile_id))
+        .orderBy(desc(profiles.created_at))
+        .limit(1);
 
     if (!result) {
       return res.status(404).json({
@@ -256,18 +264,17 @@ export const viewLatestDiagnosis = async (req: Request, res: Response) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       status: "success",
       message: "Latest diagnosis retrieved successfully",
       data: result,
     });
   } catch (e) {
     console.error("Error: GET - Latest Diagnosis", e);
-    res.status(500).json({
+    return res.status(500).json({
       status: "error",
       message:
-        "An error occurred while retrieving the latest diagnosis. Please check if the account ID is valid.",
+          "An error occurred while retrieving the latest diagnosis. Please check if the account ID is valid.",
     });
   }
 };
-
