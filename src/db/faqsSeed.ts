@@ -7,12 +7,6 @@ type FAQSeedEntry = Pick<typeof faqs.$inferInsert, "main_topic" | "question" | "
 const faqSeedData: FAQSeedEntry[] = [
   {
 	main_topic: "HEALTH",
-	question: "How do I change the units of blood glucose measurement?",
-	answer:
-	  'Click the gear-shaped Settings icon, then select "Units of Measurement." Choose your preferred unit: either mmol/L or mg/dL.',
-  },
-  {
-	main_topic: "HEALTH",
 	question: "Which smart wearable devices are compatible with CarboTrackr?",
 	answer:
 	  "CarboTrackr currently supports selected smart wearable devices. We are actively working on expanding compatibility with more devices.",
