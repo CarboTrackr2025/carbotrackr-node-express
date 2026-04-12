@@ -7,6 +7,7 @@ import {
 } from "../middleware/validation.ts";
 import {
   createBloodPressure,
+  viewDailyCarbohydrateTotal,
   viewBloodPressureReport,
   viewLatestDiagnosis,
 } from "../controller/healthController.ts";
@@ -68,6 +69,12 @@ const accountIdParamsSchema = z.object({
   account_id: z.string(),
 });
 
+const dailyCarbohydratesQuerySchema = z.object({
+  date: z.string().refine((dateStr) => !isNaN(Date.parse(dateStr)), {
+    message: "Invalid date format",
+  }),
+});
+
 healthRouter.post(
   "/blood-pressure/create",
   validateBody(createBloodPressureSchema),
@@ -94,6 +101,12 @@ healthRouter.get(
   "/:account_id/diagnosis",
   validateParams(accountIdParamsSchema),
   viewLatestDiagnosis,
+);
+healthRouter.get(
+  "/:account_id/carbohydrates/total",
+  validateParams(accountIdParamsSchema),
+  validateQuery(dailyCarbohydratesQuerySchema),
+  viewDailyCarbohydrateTotal,
 );
 
 export default healthRouter;
