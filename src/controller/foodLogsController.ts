@@ -7,6 +7,7 @@ import {foodLogs} from "../db/schema.ts"
 import { buildBaseString, buildNormalizedParams, normalizeToArray, signHmacSha1, toNumber } from "../utils/foodLogs.utils.ts"
 import getProfileIdByAccountId from "../utils/auth.utils.ts";
 import {eq, gte, lte, and, desc} from "drizzle-orm";
+import { calorieData, carbohydrateData, healthMetrics } from "../db/schema.ts"
 
 export type FatSecretServingDetails = {
     food_id: string;
@@ -193,6 +194,107 @@ export const getFoodDetailsByServingId = async (req: Request, res: Response) => 
     }
 };
 
+// RECALCULATE DAILY TOTALS
+async function recalculateDailyTotals(profile_id: string, date: Date): Promise<void> {
+    const startOfDay = new Date(date)
+    startOfDay.setHours(0, 0, 0, 0)
+    const endOfDay = new Date(date)
+    endOfDay.setHours(23, 59, 59, 999)
+
+    // Sum all food logs for this profile for this day
+    const logs = await db
+        .select({
+            calories_kcal: foodLogs.calories_kcal,
+            carbohydrates_g: foodLogs.carbohydrates_g,
+        })
+        .from(foodLogs)
+        .where(
+            and(
+                eq(foodLogs.profile_id, profile_id),
+                gte(foodLogs.created_at, startOfDay),
+                lte(foodLogs.created_at, endOfDay)
+            )
+        )
+
+    const totalCalories = logs.reduce((sum, l) => sum + (l.calories_kcal ?? 0), 0)
+    const totalCarbs = logs.reduce((sum, l) => sum + Number(l.carbohydrates_g ?? 0), 0)
+
+    // Get health metrics for this profile to get the daily goals
+    const metrics = await db
+        .select({
+            daily_calorie_goal_kcal: healthMetrics.daily_calorie_goal_kcal,
+            daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
+        })
+        .from(healthMetrics)
+        .where(eq(healthMetrics.profile_id, profile_id))
+        .limit(1)
+
+    const calorieGoal = metrics[0]?.daily_calorie_goal_kcal ?? 2000
+    const carbGoal = Number(metrics[0]?.daily_carbohydrate_goal_g ?? 250)
+
+    // Check if a calorie_data row exists for today
+    const existingCalorie = await db
+        .select({ id: calorieData.id })
+        .from(calorieData)
+        .where(
+            and(
+                eq(calorieData.profile_id, profile_id),
+                gte(calorieData.created_at, startOfDay),
+                lte(calorieData.created_at, endOfDay)
+            )
+        )
+        .limit(1)
+
+    if (existingCalorie[0]) {
+        await db
+            .update(calorieData)
+            .set({
+                calorie_actual_kcal: Math.max(totalCalories, 1),
+                calorie_goal_kcal: calorieGoal,
+            })
+            .where(eq(calorieData.id, existingCalorie[0].id))
+    } else {
+        await db
+            .insert(calorieData)
+            .values({
+                profile_id,
+                calorie_goal_kcal: calorieGoal,
+                calorie_actual_kcal: Math.max(totalCalories, 1),
+            })
+    }
+
+    // Check if a carbohydrate_data row exists for today
+    const existingCarb = await db
+        .select({ id: carbohydrateData.id })
+        .from(carbohydrateData)
+        .where(
+            and(
+                eq(carbohydrateData.profile_id, profile_id),
+                gte(carbohydrateData.created_at, startOfDay),
+                lte(carbohydrateData.created_at, endOfDay)
+            )
+        )
+        .limit(1)
+
+    if (existingCarb[0]) {
+        await db
+            .update(carbohydrateData)
+            .set({
+                carbohydrate_actual_g: Math.max(totalCarbs, 0.01),
+                carbohydrate_goal_g: carbGoal,
+            })
+            .where(eq(carbohydrateData.id, existingCarb[0].id))
+    } else {
+        await db
+            .insert(carbohydrateData)
+            .values({
+                profile_id,
+                carbohydrate_goal_g: carbGoal,
+                carbohydrate_actual_g: Math.max(totalCarbs, 0.01),
+            })
+    }
+}
+
 export const postFoodLog = async (req: Request, res: Response) => {
     try {
         const food_id = String(req.body?.food_id ?? "").trim()
@@ -210,6 +312,10 @@ export const postFoodLog = async (req: Request, res: Response) => {
         if (!account_id) return res.status(400).json({ error: "account_id is required" })
 
         const profile_id = await getProfileIdByAccountId(account_id)
+
+        if (!profile_id) {
+            return res.status(404).json({ error: "Profile not found" })
+        }
 
         const allowedMeals = new Set(["BREAKFAST", "LUNCH", "DINNER", "SNACK"])
         if (!allowedMeals.has(meal_type)) {
@@ -264,6 +370,15 @@ export const postFoodLog = async (req: Request, res: Response) => {
                 source_id: `${details.food_id}:${details.serving.serving_id}`,
             })
             .returning()
+
+        // ── Event-driven: update daily calorie/carb summary ──────────────
+        try {
+            await recalculateDailyTotals(profile_id, new Date())
+            console.log("✅ Daily totals recalculated for profile:", profile_id)
+        } catch (recalcErr) {
+            // Non-fatal: don't block the food log response
+            console.error("⚠️ Failed to recalculate daily totals:", recalcErr)
+        }
 
         return res.status(201).json({
             ok: true,
@@ -364,6 +479,7 @@ export const deleteFoodLog = async (req: Request, res: Response) => {
             .where(eq(foodLogs.id, foodLogId))
             .returning({
                 id: foodLogs.id,
+                profile_id: foodLogs.profile_id,
                 food_name: foodLogs.food_name,
                 meal_type: foodLogs.meal_type,
                 calories_kcal: foodLogs.calories_kcal,
@@ -377,6 +493,13 @@ export const deleteFoodLog = async (req: Request, res: Response) => {
                 status: "error",
                 message: "Food log not found",
             })
+        }
+
+        // ── Event-driven: recalculate after delete ────────────────────────
+        try {
+            await recalculateDailyTotals(deleted[0].profile_id ?? "", new Date())
+        } catch (recalcErr) {
+            console.error("⚠️ Failed to recalculate daily totals after delete:", recalcErr)
         }
 
         return res.status(200).json({
