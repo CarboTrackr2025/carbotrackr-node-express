@@ -1,8 +1,10 @@
 import type { Request, Response } from "express";
 import { db } from "../db/connection.ts";
 import { bloodPressureMeasurements } from "../db/schema.ts";
-import { and, eq, gte, lte, desc } from "drizzle-orm";
+import { and, eq, gte, lte, desc, sql } from "drizzle-orm";
 import { bloodGlucoseMeasurements } from "../db/schema.ts";
+import { foodLogs } from "../db/schema.ts";
+import { healthMetrics } from "../db/schema.ts";
 import { profiles } from "../db/schema.ts";
 import getProfileIdByAccountId from "../utils/auth.utils.ts";
 
@@ -18,6 +20,13 @@ export const createBloodPressure = async (req: Request, res: Response) => {
     }
 
     const profile_id = await getProfileIdByAccountId(account_id);
+
+    if (!profile_id) {
+      return res.status(404).json({
+        status: "error",
+        message: "No profile found for this account",
+      });
+    }
 
     const result = await db.transaction(async (tx) => {
       const [newBloodPressure] = await tx
@@ -61,6 +70,13 @@ export const viewBloodPressureReport = async (req: Request, res: Response) => {
     }
 
     const profile_id = await getProfileIdByAccountId(account_id);
+
+    if (!profile_id) {
+      return res.status(404).json({
+        status: "error",
+        message: "No profile found for this account",
+      });
+    }
 
     if (typeof start_date !== "string" || typeof end_date !== "string") {
       return res.status(400).json({
@@ -129,6 +145,13 @@ export const createBloodGlucose = async (req: Request, res: Response) => {
 
     const profile_id = await getProfileIdByAccountId(account_id);
 
+    if (!profile_id) {
+      return res.status(404).json({
+        status: "error",
+        message: "No profile found for this account",
+      });
+    }
+
     const result = await db.transaction(async (tx) => {
       const [newBloodGlucose] = await tx
         .insert(bloodGlucoseMeasurements)
@@ -171,6 +194,13 @@ export const viewBloodGlucoseReport = async (req: Request, res: Response) => {
     }
 
     const profile_id = await getProfileIdByAccountId(account_id);
+
+    if (!profile_id) {
+      return res.status(404).json({
+        status: "error",
+        message: "No profile found for this account",
+      });
+    }
 
     if (typeof start_date !== "string" || typeof end_date !== "string") {
       return res.status(400).json({
@@ -247,15 +277,22 @@ export const viewLatestDiagnosis = async (req: Request, res: Response) => {
       });
     }
 
+    if (!profile_id) {
+      return res.status(404).json({
+        status: "error",
+        message: "No profile found for this account",
+      });
+    }
+
     const [result] = await db
-        .select({
-          diagnosed_with: profiles.diagnosed_with,
-          created_at: profiles.created_at,
-        })
-        .from(profiles)
-        .where(eq(profiles.id, profile_id))
-        .orderBy(desc(profiles.created_at))
-        .limit(1);
+      .select({
+        diagnosed_with: profiles.diagnosed_with,
+        created_at: profiles.created_at,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, profile_id))
+      .orderBy(desc(profiles.created_at))
+      .limit(1);
 
     if (!result) {
       return res.status(404).json({
@@ -274,7 +311,186 @@ export const viewLatestDiagnosis = async (req: Request, res: Response) => {
     return res.status(500).json({
       status: "error",
       message:
-          "An error occurred while retrieving the latest diagnosis. Please check if the account ID is valid.",
+        "An error occurred while retrieving the latest diagnosis. Please check if the account ID is valid.",
+    });
+  }
+};
+
+export const viewDailyCarbohydrateTotal = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const account_id = req.params.account_id;
+    const date = req.query.date;
+
+    if (!account_id) {
+      return res.status(400).json({
+        status: "error",
+        message: "Account ID is required to view daily carbohydrate total",
+      });
+    }
+
+    if (typeof date !== "string") {
+      return res.status(400).json({
+        status: "error",
+        message: "date query param is required",
+      });
+    }
+
+    const start = date.includes("T")
+      ? new Date(date)
+      : new Date(`${date}T00:00:00.000Z`);
+
+    if (Number.isNaN(start.getTime())) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid date format for date query param",
+      });
+    }
+
+    const end = new Date(start);
+    end.setUTCHours(23, 59, 59, 999);
+
+    const profile_id = await getProfileIdByAccountId(account_id);
+
+    if (!profile_id) {
+      return res.status(404).json({
+        status: "error",
+        message: "No profile found for this account",
+      });
+    }
+
+    const [result] = await db
+      .select({
+        total_carbohydrates_g: sql<number>`coalesce(sum(${foodLogs.carbohydrates_g}), 0)`,
+      })
+      .from(foodLogs)
+      .where(
+        and(
+          eq(foodLogs.profile_id, profile_id),
+          gte(foodLogs.created_at, start),
+          lte(foodLogs.created_at, end),
+        ),
+      );
+
+    return res.status(200).json({
+      status: "success",
+      message: "Daily carbohydrate total retrieved successfully",
+      data: {
+        account_id,
+        date: start.toISOString().slice(0, 10),
+        total_carbohydrates_g: Number(result?.total_carbohydrates_g ?? 0),
+      },
+    });
+  } catch (e) {
+    console.error("Error: GET - Daily Carbohydrate Total", e);
+    return res.status(500).json({
+      status: "error",
+      message:
+        "An error occurred while retrieving daily carbohydrate total. Please check if the account ID is valid.",
+    });
+  }
+};
+
+export const viewCarbohydrateGoal = async (req: Request, res: Response) => {
+  try {
+    const account_id = req.params.account_id;
+    const date = req.query.date;
+
+    if (!account_id) {
+      return res.status(400).json({
+        status: "error",
+        message: "Account ID is required to view carbohydrate goal",
+      });
+    }
+
+    if (typeof date !== "undefined" && typeof date !== "string") {
+      return res.status(400).json({
+        status: "error",
+        message: "date query param must be a string",
+      });
+    }
+
+    const parsedDate =
+      typeof date === "string"
+        ? date.includes("T")
+          ? new Date(date)
+          : new Date(`${date}T00:00:00.000Z`)
+        : new Date();
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid date format for date query param",
+      });
+    }
+
+    const start = new Date(parsedDate);
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date(parsedDate);
+    end.setUTCHours(23, 59, 59, 999);
+
+    const profile_id = await getProfileIdByAccountId(account_id);
+
+    if (!profile_id) {
+      return res.status(404).json({
+        status: "error",
+        message: "No profile found for this account",
+      });
+    }
+
+    const [goalResult, totalResult] = await Promise.all([
+      db
+        .select({
+          daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
+        })
+        .from(healthMetrics)
+        .where(eq(healthMetrics.profile_id, profile_id))
+        .orderBy(desc(healthMetrics.updated_at))
+        .limit(1),
+      db
+        .select({
+          current_carbohydrates_g: sql<number>`coalesce(sum(${foodLogs.carbohydrates_g}), 0)`,
+        })
+        .from(foodLogs)
+        .where(
+          and(
+            eq(foodLogs.profile_id, profile_id),
+            gte(foodLogs.created_at, start),
+            lte(foodLogs.created_at, end),
+          ),
+        )
+        .limit(1),
+    ]);
+
+    const goal = goalResult[0];
+    const total = totalResult[0];
+
+    if (!goal) {
+      return res.status(404).json({
+        status: "error",
+        message: "Carbohydrate goal not found for this account",
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "Carbohydrate goal retrieved successfully",
+      data: {
+        account_id,
+        date: start.toISOString().slice(0, 10),
+        daily_carbohydrate_goal_g: Number(goal.daily_carbohydrate_goal_g),
+        current_carbohydrates_g: Number(total?.current_carbohydrates_g ?? 0),
+      },
+    });
+  } catch (e) {
+    console.error("Error: GET - Carbohydrate Goal", e);
+    return res.status(500).json({
+      status: "error",
+      message:
+        "An error occurred while retrieving carbohydrate goal. Please check if the account ID is valid.",
     });
   }
 };
