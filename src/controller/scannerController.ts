@@ -1,5 +1,5 @@
 import type { Request, Response } from "express"
-import type { Multer } from "multer"
+import type { File } from "multer"
 import { GoogleGenAI } from "@google/genai"
 import { z } from "zod"
 import { db } from "../db/connection.ts"
@@ -22,7 +22,7 @@ const responseSchema = z.object({
 })
 
 export const postLabelMacrosOnly = async (
-    req: Request & { file?: Express.Multer.File },
+    req: Request & { file?: File },
     res: Response
 ) => {
     try {
