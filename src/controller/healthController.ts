@@ -475,6 +475,8 @@ export const viewCarbohydrateGoal = async (req: Request, res: Response) => {
     const goal = goalResult[0];
     const summary = summaryResult[0];
     const total = totalResult[0];
+    const summaryCarbs = Number(summary?.carbohydrate_actual_g ?? 0);
+    const liveCarbs = Number(total?.current_carbohydrates_g ?? 0);
 
     if (!goal) {
       return res.status(404).json({
@@ -490,9 +492,7 @@ export const viewCarbohydrateGoal = async (req: Request, res: Response) => {
         account_id,
         date: normalizedDate,
         daily_carbohydrate_goal_g: Number(goal.daily_carbohydrate_goal_g),
-        current_carbohydrates_g: Number(
-          summary?.carbohydrate_actual_g ?? total?.current_carbohydrates_g ?? 0,
-        ),
+        current_carbohydrates_g: Math.max(summaryCarbs, liveCarbs),
       },
     });
   } catch (e) {

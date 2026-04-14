@@ -250,7 +250,10 @@ export const postFoodLogByAccountIdFromNutritionalLabelScanner = async (
       .returning();
 
     try {
-      await recalculateDailyTotals(profile_id, new Date());
+      const recalculationDate = inserted?.[0]?.created_at
+        ? new Date(inserted[0].created_at)
+        : new Date();
+      await recalculateDailyTotals(profile_id, recalculationDate);
     } catch (recalcError) {
       console.error(
         "Failed to recalculate daily totals after Gemini insert:",
@@ -357,7 +360,10 @@ export const postFoodLogByAccountIdFromSolidScanner = async (
       .returning();
 
     try {
-      await recalculateDailyTotals(profile_id, new Date());
+      const recalculationDate = inserted?.[0]?.created_at
+        ? new Date(inserted[0].created_at)
+        : new Date();
+      await recalculateDailyTotals(profile_id, recalculationDate);
     } catch (recalcError) {
       console.error(
         "Failed to recalculate daily totals after AWS insert:",

@@ -310,7 +310,10 @@ export const postFoodLog = async (req: Request, res: Response) => {
 
     // ── Event-driven: update daily calorie/carb summary ──────────────
     try {
-      await recalculateDailyTotals(profile_id, new Date());
+      const recalculationDate = inserted?.[0]?.created_at
+        ? new Date(inserted[0].created_at)
+        : new Date();
+      await recalculateDailyTotals(profile_id, recalculationDate);
       console.log("✅ Daily totals recalculated for profile:", profile_id);
     } catch (recalcErr) {
       // Non-fatal: don't block the food log response
@@ -345,6 +348,13 @@ export const getFoodLogsByAccountId = async (req: Request, res: Response) => {
     }
 
     const profile_id = await getProfileIdByAccountId(account_id);
+
+    if (!profile_id) {
+      return res.status(404).json({
+        status: "error",
+        message: "Profile not found for this account",
+      });
+    }
 
     if (typeof start_date !== "string" || typeof end_date !== "string") {
       return res.status(400).json({
@@ -421,6 +431,7 @@ export const deleteFoodLog = async (req: Request, res: Response) => {
         carbohydrates_g: foodLogs.carbohydrates_g,
         protein_g: foodLogs.protein_g,
         fat_g: foodLogs.fat_g,
+        created_at: foodLogs.created_at,
       });
 
     if (!deleted.length) {
@@ -432,7 +443,13 @@ export const deleteFoodLog = async (req: Request, res: Response) => {
 
     // ── Event-driven: recalculate after delete ────────────────────────
     try {
-      await recalculateDailyTotals(deleted[0].profile_id ?? "", new Date());
+      const recalculationDate = deleted[0].created_at
+        ? new Date(deleted[0].created_at)
+        : new Date();
+      await recalculateDailyTotals(
+        deleted[0].profile_id ?? "",
+        recalculationDate,
+      );
     } catch (recalcErr) {
       console.error(
         "⚠️ Failed to recalculate daily totals after delete:",
