@@ -4,9 +4,11 @@ import { bloodPressureMeasurements } from "../db/schema.ts";
 import { and, eq, gte, lte, desc, sql } from "drizzle-orm";
 import { bloodGlucoseMeasurements } from "../db/schema.ts";
 import { foodLogs } from "../db/schema.ts";
+import { carbohydrateData } from "../db/schema.ts";
 import { healthMetrics } from "../db/schema.ts";
 import { profiles } from "../db/schema.ts";
 import getProfileIdByAccountId from "../utils/auth.utils.ts";
+import { getDayBoundsInTimeZone } from "../utils/dailyTotalsUtils.ts";
 
 export const createBloodPressure = async (req: Request, res: Response) => {
   try {
@@ -60,7 +62,7 @@ export const viewBloodPressureReport = async (req: Request, res: Response) => {
   try {
     const start_date = req.query.start_date;
     const end_date = req.query.end_date;
-    const account_id = req.params.account_id;
+    const account_id = String(req.params.account_id ?? "").trim();
 
     if (!account_id) {
       return res.status(400).json({
@@ -184,7 +186,7 @@ export const viewBloodGlucoseReport = async (req: Request, res: Response) => {
   try {
     const start_date = req.query.start_date;
     const end_date = req.query.end_date;
-    const account_id = req.params.account_id;
+    const account_id = String(req.params.account_id ?? "").trim();
 
     if (!account_id) {
       return res.status(400).json({
@@ -321,7 +323,7 @@ export const viewDailyCarbohydrateTotal = async (
   res: Response,
 ) => {
   try {
-    const account_id = req.params.account_id;
+    const account_id = String(req.params.account_id ?? "").trim();
     const date = req.query.date;
 
     if (!account_id) {
@@ -395,7 +397,7 @@ export const viewDailyCarbohydrateTotal = async (
 
 export const viewCarbohydrateGoal = async (req: Request, res: Response) => {
   try {
-    const account_id = req.params.account_id;
+    const account_id = String(req.params.account_id ?? "").trim();
     const date = req.query.date;
 
     if (!account_id) {
@@ -412,25 +414,16 @@ export const viewCarbohydrateGoal = async (req: Request, res: Response) => {
       });
     }
 
-    const parsedDate =
-      typeof date === "string"
-        ? date.includes("T")
-          ? new Date(date)
-          : new Date(`${date}T00:00:00.000Z`)
-        : new Date();
+    const bounds = getDayBoundsInTimeZone(date);
 
-    if (Number.isNaN(parsedDate.getTime())) {
+    if (!bounds) {
       return res.status(400).json({
         status: "error",
         message: "Invalid date format for date query param",
       });
     }
 
-    const start = new Date(parsedDate);
-    start.setUTCHours(0, 0, 0, 0);
-
-    const end = new Date(parsedDate);
-    end.setUTCHours(23, 59, 59, 999);
+    const { start, end, date: normalizedDate } = bounds;
 
     const profile_id = await getProfileIdByAccountId(account_id);
 
@@ -441,7 +434,7 @@ export const viewCarbohydrateGoal = async (req: Request, res: Response) => {
       });
     }
 
-    const [goalResult, totalResult] = await Promise.all([
+    const [goalResult, summaryResult, totalResult] = await Promise.all([
       db
         .select({
           daily_carbohydrate_goal_g: healthMetrics.daily_carbohydrate_goal_g,
@@ -449,6 +442,20 @@ export const viewCarbohydrateGoal = async (req: Request, res: Response) => {
         .from(healthMetrics)
         .where(eq(healthMetrics.profile_id, profile_id))
         .orderBy(desc(healthMetrics.updated_at))
+        .limit(1),
+      db
+        .select({
+          carbohydrate_actual_g: carbohydrateData.carbohydrate_actual_g,
+        })
+        .from(carbohydrateData)
+        .where(
+          and(
+            eq(carbohydrateData.profile_id, profile_id),
+            gte(carbohydrateData.created_at, start),
+            lte(carbohydrateData.created_at, end),
+          ),
+        )
+        .orderBy(desc(carbohydrateData.created_at))
         .limit(1),
       db
         .select({
@@ -466,6 +473,7 @@ export const viewCarbohydrateGoal = async (req: Request, res: Response) => {
     ]);
 
     const goal = goalResult[0];
+    const summary = summaryResult[0];
     const total = totalResult[0];
 
     if (!goal) {
@@ -480,9 +488,11 @@ export const viewCarbohydrateGoal = async (req: Request, res: Response) => {
       message: "Carbohydrate goal retrieved successfully",
       data: {
         account_id,
-        date: start.toISOString().slice(0, 10),
+        date: normalizedDate,
         daily_carbohydrate_goal_g: Number(goal.daily_carbohydrate_goal_g),
-        current_carbohydrates_g: Number(total?.current_carbohydrates_g ?? 0),
+        current_carbohydrates_g: Number(
+          summary?.carbohydrate_actual_g ?? total?.current_carbohydrates_g ?? 0,
+        ),
       },
     });
   } catch (e) {
