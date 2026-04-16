@@ -21,12 +21,12 @@ export type FatSecretServingDetails = {
   serving: {
     serving_id: string;
     serving_description: string | null;
-    metric_serving_amount: number;
+    metric_serving_amount: number | null;
     metric_serving_unit: string | null;
-    calories: number;
-    carbs: number;
-    protein: number;
-    fat: number;
+    calories: number | null;
+    carbs: number | null;
+    protein: number | null;
+    fat: number | null;
   };
 };
 
@@ -88,7 +88,13 @@ export async function fetchFatSecretServingDetails(
       metric_serving_amount: toNumber(match?.metric_serving_amount),
       metric_serving_unit: match?.metric_serving_unit ?? null,
       calories: toNumber(match?.calories),
-      carbs: toNumber(match?.carbohydrate),
+      carbs: toNumber(
+        match?.carbohydrate ??
+          match?.carbohydrates ??
+          match?.carbohydrate_g ??
+          match?.carb ??
+          match?.carbs,
+      ),
       protein: toNumber(match?.protein),
       fat: toNumber(match?.fat),
     },
@@ -261,28 +267,64 @@ export const postFoodLog = async (req: Request, res: Response) => {
 
     const details = await fetchFatSecretServingDetails(food_id, serving_id);
 
-    const unit = (details.serving.metric_serving_unit ?? "")
-      .trim()
-      .toLowerCase();
+    const {
+      metric_serving_amount,
+      calories,
+      carbs,
+      protein,
+      fat,
+      metric_serving_unit,
+    } = details.serving;
+
+    if (
+      metric_serving_amount == null ||
+      calories == null ||
+      carbs == null ||
+      protein == null ||
+      fat == null
+    ) {
+      return res.status(502).json({
+        error:
+          "FatSecret response missing complete nutrition data for selected serving",
+        nutrition: {
+          calories,
+          carbohydrates_g: carbs,
+          protein_g: protein,
+          fat_g: fat,
+        },
+      });
+    }
+
+    if (
+      !Number.isFinite(metric_serving_amount) ||
+      !Number.isFinite(calories) ||
+      !Number.isFinite(carbs) ||
+      !Number.isFinite(protein) ||
+      !Number.isFinite(fat)
+    ) {
+      return res.status(502).json({
+        error: "FatSecret response contains invalid nutrition numbers",
+      });
+    }
+
+    const unit = (metric_serving_unit ?? "").trim().toLowerCase();
     if (unit !== "g") {
       return res.status(400).json({
         error:
           "This serving is not in grams, cannot store into serving_size_g safely",
-        unit: details.serving.metric_serving_unit,
-        metric_serving_amount: details.serving.metric_serving_amount,
+        unit: metric_serving_unit,
+        metric_serving_amount,
       });
     }
 
     const round2 = (n: number) => Math.round(n * 100) / 100;
 
-    const serving_size_g = round2(details.serving.metric_serving_amount);
+    const serving_size_g = round2(metric_serving_amount);
 
-    const calories_kcal = Math.round(
-      details.serving.calories * number_of_servings,
-    );
-    const carbohydrates_g = round2(details.serving.carbs * number_of_servings);
-    const protein_g = round2(details.serving.protein * number_of_servings);
-    const fat_g = round2(details.serving.fat * number_of_servings);
+    const calories_kcal = Math.round(calories * number_of_servings);
+    const carbohydrates_g = round2(carbs * number_of_servings);
+    const protein_g = round2(protein * number_of_servings);
+    const fat_g = round2(fat * number_of_servings);
 
     const food_name = String(details.food_name ?? "").trim();
     if (!food_name) {
